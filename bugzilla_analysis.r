@@ -2,8 +2,8 @@
 #																				#
 # 		ANALYZING MOZILLA'S BUGZILLA DATABASE USING R							#
 #																				#
-#		© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				#
-#		Twitter: @mekki - http://twitter.com/mekki
+#		Â© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				#
+#		Twitter: @mekki - http://twitter.com/mekki								#
 #		Some rights reserved.													#
 #																				#
 #		Current version created on November 4, 2015								#
