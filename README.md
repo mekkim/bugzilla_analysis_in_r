@@ -3,7 +3,7 @@ Solution knowledge emergence and knowledge adoption
 																	
 R Code to Reproduce Quantatitive Data Analysis of Dissertation			
 																	
-© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				
+© 2015 by Mekki MacAulay, mekki@mekki.ca http://mekki.ca http://twitter.com/mekki			
 Some rights reserved.													
 																	
 Current version created on November 4, 2015								
