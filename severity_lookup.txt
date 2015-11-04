@@ -1,0 +1,8 @@
+"bug_severity", "severity"
+"enhancement", "1"
+"trivial", "2"
+"minor", "3"
+"normal", "4"
+"major", "5"
+"critical", "6"
+"blocker", "7"
