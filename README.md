@@ -1,28 +1,28 @@
 Determinants of success of the open source selective revealing strategy: 		
-		Solution knowledge emergence and knowledge adoption						
-																				
-		R Code to Reproduce Quantatitive Data Analysis of Dissertation			
-																				
-		© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				
-		Some rights reserved.													
-																				
-		Current version created on November 4, 2015								
-																				
-		This program is free and open source software. The author licenses it	
-		to you under the terms of the GNU General Public License (GPL), as 		
-		published by the Free Software Foundation, either version 3, or			
-		(at your option) any later version (GPLv3+).							
-																				
-		There is NO WARRANTY for this software, express or implied, including 	
-		the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR 	
-		PURPOSE. See the GNU General Public License for more details.			
-																				
-		For the full text of the GNU General Public License, please visit		
-		http://gnu.org/licenses/																					
-                                           									
-		Should you require an alternative licensing arrangement for this 		
-		software, please contact the author.	                                
-																				
+Solution knowledge emergence and knowledge adoption						
+																	
+R Code to Reproduce Quantatitive Data Analysis of Dissertation			
+																	
+© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				
+Some rights reserved.													
+																	
+Current version created on November 4, 2015								
+																	
+This program is free and open source software. The author licenses it	
+to you under the terms of the GNU General Public License (GPL), as 		
+published by the Free Software Foundation, either version 3, or			
+(at your option) any later version (GPLv3+).							
+																	
+There is NO WARRANTY for this software, express or implied, including 	
+the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR 	
+PURPOSE. See the GNU General Public License for more details.			
+																	
+For the full text of the GNU General Public License, please visit		
+http://gnu.org/licenses/																				
+																
+Should you require an alternative licensing arrangement for this 		
+software, please contact the author.	                                
+																			
 
 To execute the script file in R, use the following commands:
 																				
