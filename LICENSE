@@ -1,26 +1,24 @@
-#################################################################################
-#       HOWTO Analyze Mozilla's Bugzilla Using R 		
-#																		
-#		© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				
-#		Some rights reserved.												
-#																				
-#		Current version created on November 4, 2015								
-#																				
-#		This program is free and open source software. The author licenses it	 
-#		to you under the terms of the GNU General Public License (GPL), as 		
-#		published by the Free Software Foundation, either version 3, or			
-#		(at your option) any later version (GPLv3+).							
-#																				
-#		There is NO WARRANTY for this software, express or implied, including 	
-#		the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR 	
-#		PURPOSE. See the GNU General Public License for more details.			
-#																				
-#		For the full text of the GNU General Public License v3 see below. Please visit		
-#		http://gnu.org/licenses/ for more details.
-#                                            									
-#		Should you require an alternative licensing arrangement for this 		
-#		software, please contact the author.	                 				
-#################################################################################
+ HOWTO Analyze Mozilla's Bugzilla Using R 		
+
+© 2015 by Mekki MacAulay, mekki@mekki.ca http://mekki.ca http://twitter.com/mekki				
+Some rights reserved.												
+
+Current version created on November 4, 2015								
+
+This program is free and open source software. The author licenses it	 
+to you under the terms of the GNU General Public License (GPL), as 		
+published by the Free Software Foundation, either version 3, or			
+(at your option) any later version (GPLv3+).							
+
+There is NO WARRANTY for this software, express or implied, including 	
+the implied warranties of MERCHANTABILITY or FITNESS FOR A PARTICULAR 	
+PURPOSE. See the GNU General Public License for more details.			
+
+For the full text of the GNU General Public License v3 see below. Please visit		
+http://gnu.org/licenses/ for more details.
+
+Should you require an alternative licensing arrangement for this 		
+software, please contact the author.	                 				
 
 
                     GNU GENERAL PUBLIC LICENSE
