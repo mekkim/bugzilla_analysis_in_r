@@ -2,11 +2,11 @@
 #																				#
 # 		ANALYZING MOZILLA'S BUGZILLA DATABASE USING R							#
 #																				#
-#		© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				#
-#		Twitter: @mekki - http://twitter.com/mekki
+#		Â© 2015 by Mekki MacAulay, mekki@mekki.ca, http://mekki.ca				#
+#		Twitter: @mekki - http://twitter.com/mekki								#
 #		Some rights reserved.													#
 #																				#
-#		Current version created on November 4, 2015								#
+#		Current version created on November 5, 2015								#
 #																				#
 #		This program is free and open source software. The author licenses it	# 
 #		to you under the terms of the GNU General Public License (GPL), as 		#
@@ -24,13 +24,12 @@
 #		software, please contact the author.	                                #
 #																				#
 #################################################################################
-#
 # This file is a commented R script file that can be executed directly in R:
 #
 # setwd('<FULL PATH TO THIS SCRIPT FILE>');
 # source('<NAME OF THIS FILE>.r', echo=TRUE, max.deparse.length=100000, keep.source=TRUE, verbose=TRUE);
-# (These source() parameters ensure that the R shell outputs the script commands and responses. Otherwise, they're hidden by default.) 
-##
+# (These source() parameters ensure that the R shell outputs the script commands and responses. Otherwise, they're hidden by default.)
+#
 # Or, from the command prompt directly as follows (assuming R binary is in the PATH environment variable):
 # cd <FULL PATH TO THIS SCRIPT FILE>
 # R CMD BATCH <NAME OF THIS FILE>.r
@@ -126,7 +125,7 @@
 # FactoMineR
 # FSA: https://www.rforge.net/FSA/Installation.html -> Not needed with dplyr::filter, which is much faster
 # ggplot2
-# googleVis https://cran.r-project.org/web/packages/googleVis/index.html
+# googleVis https://cran.r-project.org/web/packages/googleVis/index.html -> Not used presently. Seems buggy
 # graphics
 # gWidgets
 # gWidgetsRGtk2
@@ -188,7 +187,7 @@
 #
 # Follow the instructions here to install "PHP Domain Parser" using Composer: https://github.com/jeremykendall/php-domain-parser/blob/develop/README.md
 # 
-# The small php program "domainparser.php" is provided and uses the installed domai parser library
+# The small php program "domainparser.php" is provided and uses the installed domain parser library
 #
 # END OF DEPENDENCIES TO RUN SCRIPT
 #
@@ -197,6 +196,15 @@
 #################################################################################
 # 								START OF SCRIPT									#
 #################################################################################
+
+# SET USER-DEFINED PARAMETERS
+set_parameters <- function () {
+
+# Set the date & time for the end fo the database snapshot
+DATABASE_END_TIMESTAMP	<<- as.character("2013-01-01 10:01:00");
+
+} # End set_parameters function
+
 
 # LOAD LIBRARIES
 load_libraries <- function () {
@@ -245,6 +253,46 @@ group_members	<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM user_gr
 
 } # End load_bugzilla_data function
 
+# Compustat functions are included for my dissertation work and depend on access to a specific set of
+# compustat data that I cannot redistribute.  They're commented out in the main() function so you can safely ignore.
+# Compustat data frames/tables
+load_compustat_data <- function () {
+
+# Create data frame variables from the COMPUSTAT CSV files
+# We'll use the fread function in data.table
+
+compustatna 	<<- fread("compustatna.csv");
+compustatint 	<<- fread("compustatint.csv");
+
+} # End load_compustat_data function
+
+
+# Mimetypes / Internet Media Types from Internet Assigned Numbers Authority (IANA)
+load_mimetypes <- function () {
+
+# Read all 8 CSV files, one for each registry, from IANA update list at http://www.iana.org/assignments/media-types/media-types.xml
+# We only really care about the "Template" column, which we'll use for matching later
+application_mimetypes	<- read.csv('http://www.iana.org/assignments/media-types/application.csv');
+audio_mimetypes			<- read.csv('http://www.iana.org/assignments/media-types/audio.csv');
+image_mimetypes			<- read.csv('http://www.iana.org/assignments/media-types/image.csv');
+message_mimetypes		<- read.csv('http://www.iana.org/assignments/media-types/message.csv');
+model_mimetypes			<- read.csv('http://www.iana.org/assignments/media-types/model.csv');
+multipart_mimetypes		<- read.csv('http://www.iana.org/assignments/media-types/multipart.csv');
+text_mimetypes			<- read.csv('http://www.iana.org/assignments/media-types/text.csv');
+video_mimetypes			<- read.csv('http://www.iana.org/assignments/media-types/video.csv');
+
+# We want it all to lowercase to make matching easier
+application_mimetypes	<<- mutate(application_mimetypes, 	Template = tolower(Template));
+audio_mimetypes			<<- mutate(audio_mimetypes, 		Template = tolower(Template));
+image_mimetypes			<<- mutate(image_mimetypes, 		Template = tolower(Template));
+message_mimetypes		<<- mutate(message_mimetypes, 		Template = tolower(Template));
+model_mimetypes			<<- mutate(model_mimetypes, 		Template = tolower(Template));
+multipart_mimetypes		<<- mutate(multipart_mimetypes, 	Template = tolower(Template));
+text_mimetypes			<<- mutate(text_mimetypes, 			Template = tolower(Template));
+video_mimetypes			<<- mutate(video_mimetypes, 		Template = tolower(Template));
+
+} # End load_mimetypes function
+
 # END DATA INPUT
 
 
@@ -253,6 +301,33 @@ group_members	<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM user_gr
 # In this step, we isolate the useful constructs for analysis
 # Often, we'll create multiple operationalizations for similar things
  
+# Domains: COMPUSTAT
+# Compustat functions are included for my dissertation work and depend on access to a specific set of
+# compustat data that I cannot redistribute.  They're commented out in the execution so you can safely ignore.
+clean_compustat_data <- function () { 
+# Since we're going to cross-reference the Bugzilla and COMPUSTAT databases using website,
+# we want to isolate the unique URLs in the COMPUSTAT data sets
+weburlint 	<- compustatint$weburl;
+weburlna 	<- compustatna$weburl;
+
+# Trim off the leading "www."
+weburlint 	<- sub("^www\\.((?:[a-z0-9-]+\\.)+[a-z]{2,4})$", "\\1", weburlint, ignore.case = TRUE, perl = TRUE);
+weburlna 	<- sub("^www\\.((?:[a-z0-9-]+\\.)+[a-z]{2,4})$", "\\1", weburlna, ignore.case = TRUE, perl = TRUE);
+
+# Trim off the trailing "/index.html" or other trailing parts
+weburlint	<- sub("^((?:[a-z0-9-]+\\.)+[a-z]{2,4})\\/.*$", "\\1", weburlint, ignore.case = TRUE, perl = TRUE);
+weburlna	<- sub("^((?:[a-z0-9-]+\\.)+[a-z]{2,4})\\/.*$", "\\1", weburlna, ignore.case = TRUE, perl = TRUE);
+
+# Reduce to unique, non-"" values
+compustat_domains_int	<<- unique(weburlint[weburlint !=""]);
+compustat_domains_na	<<- unique(weburlna[weburlna !=""]);
+
+# Create an "all" value for when necessary, without duplicates
+compustat_domains <<- unique(c(weburlint, weburlna));
+
+} # End clean_compustat_data function
+
+
 # Domains: Bugzilla
 clean_bugzilla_data <- function () {
 # Domains are trimmed from the email address in the "login_name" field of the "profiles" table
@@ -298,7 +373,8 @@ profiles_no_webmail$domain	<- sub("^mozilla\\.com", "mozilla\\.org", profiles_no
 profiles_no_webmail$domain	<- sub("^mozillafoundation\\.org", "mozilla\\.org", profiles_no_webmail$domain, ignore.case = TRUE, perl = TRUE);
 
 # Old Netscape profiles are deprecated to this format. Might as well merge them with the other Netscape accounts.
-profiles_no_webmail$domain	<- sub("^formerly-netscape\\.com$", "netscape\\.com", profiles_no_webmail$domain, ignore.case = TRUE, perl = TRUE);
+# Commented out because preserving it could be useful to identify pre-mozilla foundation creation people
+# profiles_no_webmail$domain	<- sub("^formerly-netscape\\.com$", "netscape\\.com", profiles_no_webmail$domain, ignore.case = TRUE, perl = TRUE);
 
 # Bugzilla used to use .com, but now it's just .org
 profiles_no_webmail$domain	<- sub("^bugzilla\\.com", "bugzilla\\.org", profiles_no_webmail$domain, ignore.case = TRUE, perl = TRUE);
@@ -384,7 +460,8 @@ attachments_working <- attachments;
 
 # Set fields that were incorrectly set as integer to factors
 attachments_working <- mutate(attachments_working, bug_id 		= as.factor(bug_id),
-												   submitter_id = as.factor(submitter_id));
+												   submitter_id = as.factor(submitter_id),
+												   mimetype 	= tolower(mimetype));
 
 
 # VOTES
@@ -466,6 +543,12 @@ setkey(profiles_working, domain);
 
 # Merge the tables onto the profiles_working table according to domain and org_user_count, preserving all profiles_working rows
 profiles_working <- merge(profiles_working, profiles_domain_count, by="domain", all.x=TRUE);
+
+# Create a new column that subtracts the profile creation timestamp from the DATABASE_END_TIMESTAMP parameter to get age of profile in days
+# There is no way to get a timestamp of when disabled accounts were disabled, so we can't calculate their age when disabled, unfortunately
+# Another unfortunate problem is that about 30% of the creation_ts values are the same value, suggesting that some sort of merge/restore happened
+# on April 23, 2011 (2011-04-23 07:05:38), which incorrectly reset the creation timestamps to that date/time.  As such, those values are bad and have to be set to NA instead
+profiles_working <- mutate(profiles_working, profile_age = ifelse(creation_ts=="2011-04-23 07:05:38", NA, difftime(as.chron(DATABASE_END_TIMESTAMP), as.chron(creation_ts), units = "days")));
 
 
 # BUGS
@@ -779,7 +862,9 @@ bugs_working <- merge(bugs_working, activity_working_summary, by="bug_id", all.x
 # We want the whole activity_clean table, not just activities_base (by "orgs") because non-org users may have changed a bug status
 # The possible resolutions are in "added" and are "CLOSED", "RESOLVED" or "VERIFIED"
 # These SHOULD only appear in fieldid 29 which is "bug_status", but sometimes they end up elsewhere, so check for fieldid
-activity_resolved <- filter(activity_clean, (added=="CLOSED" & fieldid==29 ) | (added=="RESOLVED" & fieldid==29) | (added=="VERIFIED" & fieldid==29));
+activity_resolved <- filter(activity_clean, (added=="CLOSED" 	& fieldid==29) | 
+											(added=="RESOLVED" 	& fieldid==29) | 
+											(added=="VERIFIED" 	& fieldid==29));
 
 # Rearrange the resolved activities by descending date, meaning present, backwards, or most recent dates first
 activity_resolved <- arrange(activity_resolved, desc(bug_when));
@@ -797,7 +882,7 @@ setkey(bugs_working, bug_id);
 bugs_working <- merge(bugs_working, activity_resolved_distinct, by="bug_id", all.x=TRUE);
 
 # For all the rows that have "pending" outcome, we want to set the end time of the dataset as the censor_ts value
-bugs_working <- mutate(bugs_working, censor_ts = ifelse(outcome=="pending", as.character("2013-01-01 10:01:00"), censor_ts));
+bugs_working <- mutate(bugs_working, censor_ts = ifelse(outcome=="pending", as.character(DATABASE_END_TIMESTAMP), censor_ts));
 
 # In very rare cases, with very old bugs, there is sometimes no entry in the activity table even when there is a resolution
 # For those cases, set the censor_ts to delta_ts, the last time it or related tables were modified
@@ -957,7 +1042,7 @@ bugs_working <- dplyr::rename(bugs_working, description_length = comment_length)
 
 # We can reuse the longdescs_working variable from above, so no need to import it again
 # It already has the comment length column added.  We just need to sum those for each bug_id
-# First, we'll use Dplyr's group_by() command to set a flag in the data.frame that bug_ids should be grouped
+
 longdescs_working_grouped <- group_by(longdescs_working, bug_id);
 
 # Now we'll use Dplyr's summarize() command to extract the sums of the comments column for each bug_id
@@ -970,6 +1055,24 @@ bugs_working <- merge(bugs_working, longdescs_working_summary, by="bug_id", all.
 
 # The comments_length variable includes the description_length, so subtract it:
 bugs_working <- mutate(bugs_working, comments_length = comments_length - description_length);
+
+
+# BUGS-CC_ALL_ACTORS
+
+# First, we'll use Dplyr's group_by() command to set a flag in the data.frame that bug_ids should be grouped
+# We want cc_clean because non-org users may still be following bug
+cc_working_bug_id_grouped <- group_by(cc_clean, bug_id);
+
+# Apply Dplyr's summarize() command to extract the count of CCs for each bug_id
+cc_working_bug_id_summary <- summarize(cc_working_bug_id_grouped, cc_all_count = n());
+
+# Merge the cc_working_bug_id summary and bugs_working tables based on bug_id to add CC count
+setkey(cc_working_bug_id_summary, bug_id);
+setkey(bugs_working, bug_id);
+bugs_working <- merge(bugs_working, cc_working_bug_id_summary, by="bug_id", all.x=TRUE);
+
+# For any NA entries in the "cc_count" column, that means 0, so mutate it accordingly.
+bugs_working <- mutate(bugs_working, cc_all_count = ifelse(is.na(cc_all_count), 0, cc_all_count));
 
 
 # PROFILES-USER-BUGS_REPORTED-REOPENED_OR_ASSIGNED_OR_REASSIGNED
@@ -1010,82 +1113,102 @@ setkey(bugs_working_grouped_org_reporter_summary, reporter_domain);
 setkey(profiles_working, domain);
 profiles_working <- merge(profiles_working, bugs_working_grouped_org_reporter_summary, by.x="domain", by.y="reporter_domain", all.x=TRUE);
 
-# For any NA entries in the count column, that means 0, so mutate it accordingly.
-profiles_working <- mutate(profiles_working, org_bugs_reported_reopened_count = ifelse(is.na(org_bugs_reported_reopened_count), 	0, org_bugs_reported_reopened_count),
-											 org_bugs_reported_assigned_count = ifelse(is.na(org_bugs_reported_assigned_count), 	0, org_bugs_reported_assigned_count),
+# For any NA entries in the count columns, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_bugs_reported_reopened_count 	= ifelse(is.na(org_bugs_reported_reopened_count), 	0, org_bugs_reported_reopened_count),
+											 org_bugs_reported_assigned_count 	= ifelse(is.na(org_bugs_reported_assigned_count), 	0, org_bugs_reported_assigned_count),
 											 org_bugs_reported_reassigned_count = ifelse(is.na(org_bugs_reported_reassigned_count), 0, org_bugs_reported_reassigned_count));
 
-#HERE
-# PROFILES-USER-BUGS_ASSIGNED-REASSIGNED
-# (Track how many times each user that was set as assigned_to a bug, had it reassigned on them)
+
+# PROFILES-USER-BUGS_ASSIGNED_TO-REOPENED_OR_ASSIGNED_OR_REASSIGNED
+# (Track how many times each user that was set as assigned_to a bug, had it reopened, assigned, or reassigned)
 
 # Use DPLYR's group_by() function to organize bugs_working table according to assigned userid
 bugs_working_grouped_assigned_to <- group_by(bugs_working, assigned_to);
 
-# Use DPLYR's summarize() function to sum reassigned count across all bugs for each assigned_to user
-bugs_working_grouped_user_assigned_to_summary <- summarize(bugs_working_grouped_assigned_to, user_bugs_assigned_to_reassigned_count = sum(reassigned_count));
+# Use DPLYR's summarize() function to sum reopened, assigned, and reassigned count across all bugs for each assigned_to user
+bugs_working_grouped_user_assigned_to_summary <- summarize(bugs_working_grouped_assigned_to, user_bugs_assigned_to_reopened_count 	= sum(reopened_count),
+																							 user_bugs_assigned_to_assigned_count 	= sum(assigned_count),
+																							 user_bugs_assigned_to_reassigned_count = sum(reassigned_count));
 
 # Merge the "bugs_working_grouped_user_assigned_to_summary" table with the profiles table based on "assigned_to" and "userid"
 setkey(bugs_working_grouped_user_assigned_to_summary, assigned_to);
 setkey(profiles_working, userid);
 profiles_working <- merge(profiles_working, bugs_working_grouped_user_assigned_to_summary, by.x="userid", by.y="assigned_to", all.x=TRUE);
 
-# For any NA entries in the "user_bugs_assigned_to_reassigned_count" column, that means 0, so mutate it accordingly.
-profiles_working <- mutate(profiles_working, user_bugs_assigned_to_reassigned_count = ifelse(is.na(user_bugs_assigned_to_reassigned_count), 0, user_bugs_assigned_to_reassigned_count));
+# For any 0 entries in the assigned_count column, that's silly because at least the assigned_to user was assigned, so set to 1
+# NA entries in the count columns, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_bugs_assigned_to_reopened_count 	= ifelse(is.na(user_bugs_assigned_to_reopened_count), 	0, user_bugs_assigned_to_reopened_count),
+											 user_bugs_assigned_to_assigned_count 	= ifelse(user_bugs_assigned_to_assigned_count==0, 1, 
+																					  ifelse(is.na(user_bugs_assigned_to_assigned_count), 	0, user_bugs_assigned_to_assigned_count)),
+											 user_bugs_assigned_to_reassigned_count = ifelse(is.na(user_bugs_assigned_to_reassigned_count), 0, user_bugs_assigned_to_reassigned_count));
 
 
-# PROFILES-ORG-BUGS_ASSIGNED-REASSIGNED
-# (Track how many times each org that was set as assigned_to for a bug, had it reassigned on them)
+# PROFILES-ORG-BUGS_ASSIGNED_TO-REOPENED_OR_ASSIGNED_OR_REASSIGNED
+# (Track how many times each org that was set as assigned_to for a bug, had it reopened, assigned, or reassigned on them)
 
 # Use DPLYR's group_by() function to organize bugs_working table according to assigned_domain
 bugs_working_grouped_assigned_domain <- group_by(bugs_working, assigned_domain);
 
-# Use DPLYR's summarize() function to sum reassigned count across all bugs for each assigned_domain
-bugs_working_grouped_org_assigned_summary <- summarize(bugs_working_grouped_assigned_domain, org_bugs_assigned_reassigned_count = sum(reassigned_count));
+# Use DPLYR's summarize() function to sum reopened, assigned, and reassigned count across all bugs for each assigned_domain
+bugs_working_grouped_org_assigned_summary <- summarize(bugs_working_grouped_assigned_domain, org_bugs_assigned_to_reopened_count 	= sum(reopened_count),
+																							 org_bugs_assigned_to_assigned_count 	= sum(assigned_count),
+																							 org_bugs_assigned_to_reassigned_count 	= sum(reassigned_count));
 
 # Merge the "bugs_working_grouped_org_assigned_summary" table with the profiles table based on "assigned_domain" and "domain"
 setkey(bugs_working_grouped_org_assigned_summary, assigned_domain);
 setkey(profiles_working, domain);
 profiles_working <- merge(profiles_working, bugs_working_grouped_org_assigned_summary, by.x="domain", by.y="assigned_domain", all.x=TRUE);
 
-# For any NA entries in the "org_bugs_assigned_reassigned_count" column, that means 0, so mutate it accordingly.
-profiles_working <- mutate(profiles_working, org_bugs_assigned_reassigned_count = ifelse(is.na(org_bugs_assigned_reassigned_count), 0, org_bugs_assigned_reassigned_count));
+# For any 0 entries in the assigned_count column, that's silly because at least the assigned_to domain was assigned, so set to 1
+# For any NA entries in the count columns, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_bugs_assigned_to_reopened_count 	= ifelse(is.na(org_bugs_assigned_to_reopened_count), 	0, org_bugs_assigned_to_reopened_count),
+											 org_bugs_assigned_to_assigned_count 	= ifelse(org_bugs_assigned_to_assigned_count==0, 1, 
+																					  ifelse(is.na(org_bugs_assigned_to_assigned_count), 	0, org_bugs_assigned_to_assigned_count)),
+											 org_bugs_assigned_to_reassigned_count 	= ifelse(is.na(org_bugs_assigned_to_reassigned_count), 	0, org_bugs_assigned_to_reassigned_count));
 
 
-# PROFILES-USER-BUGS_QA-REASSIGNED
-# (Track how many times each user that was set as qa_contact a bug, had it reassigned on them)
+# PROFILES-USER-BUGS_QA_CONTACT-REOPENED_OR_ASSIGNED_OR_REASSIGNED
+# (Track how many times each user that was set as qa_contact a bug, had it reopened, assigned, or reassigned)
 
 # Use DPLYR's group_by() function to organize bugs_working table according to qa_contact userid
 bugs_working_grouped_qa_contact <- group_by(bugs_working, qa_contact);
 
-# Use DPLYR's summarize() function to sum reassigned count across all bugs for each qa_contact user
-bugs_working_grouped_user_qa_contact_summary <- summarize(bugs_working_grouped_qa_contact, user_bugs_qa_contact_reassigned_count = sum(reassigned_count));
+# Use DPLYR's summarize() function to sum reopened, assigned, and reassigned count across all bugs for each qa_contact user
+bugs_working_grouped_user_qa_contact_summary <- summarize(bugs_working_grouped_qa_contact,  user_bugs_qa_contact_reopened_count 	= sum(reopened_count),
+																							user_bugs_qa_contact_assigned_count 	= sum(assigned_count),
+																							user_bugs_qa_contact_reassigned_count 	= sum(reassigned_count));
 
 # Merge the "bugs_working_grouped_user_qa_contact_summary" table with the profiles table based on "qa_contact" and "userid"
 setkey(bugs_working_grouped_user_qa_contact_summary, qa_contact);
 setkey(profiles_working, userid);
 profiles_working <- merge(profiles_working, bugs_working_grouped_user_qa_contact_summary, by.x="userid", by.y="qa_contact", all.x=TRUE);
 
-# For any NA entries in the "user_bugs_qa_contact_reassigned_count" column, that means 0, so mutate it accordingly.
-profiles_working <- mutate(profiles_working, user_bugs_qa_contact_reassigned_count = ifelse(is.na(user_bugs_qa_contact_reassigned_count), 0, user_bugs_qa_contact_reassigned_count));
+# For any NA entries in the count columns, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_bugs_qa_contact_reopened_count 	= ifelse(is.na(user_bugs_qa_contact_reopened_count), 	0, user_bugs_qa_contact_reopened_count),
+											 user_bugs_qa_contact_assigned_count 	= ifelse(is.na(user_bugs_qa_contact_assigned_count), 	0, user_bugs_qa_contact_assigned_count),
+											 user_bugs_qa_contact_reassigned_count 	= ifelse(is.na(user_bugs_qa_contact_reassigned_count), 	0, user_bugs_qa_contact_reassigned_count));
 
 
-# PROFILES-ORG-BUGS_QA-REASSIGNED
-# (Track how many times each org that was set as qa_contact for a bug, had it reassigned on them)
+# PROFILES-ORG-BUGS_QA_CONTACT-REOPENED_OR_ASSIGNED_OR_REASSIGNED
+# (Track how many times each org that was set as qa_contact for a bug, had it reopened, assigned, or reassigned)
 
 # Use DPLYR's group_by() function to organize bugs_working table according to qa_domain
 bugs_working_grouped_qa_domain <- group_by(bugs_working, qa_domain);
 
-# Use DPLYR's summarize() function to sum reassigned count across all bugs for each qa_domain
-bugs_working_grouped_org_qa_summary <- summarize(bugs_working_grouped_qa_domain, org_bugs_qa_reassigned_count = sum(reassigned_count));
+# Use DPLYR's summarize() function to sum reopened, assigned, and reassigned count across all bugs for each qa_domain
+bugs_working_grouped_org_qa_summary <- summarize(bugs_working_grouped_qa_domain, org_bugs_qa_contact_reopened_count 	= sum(reopened_count),
+																				 org_bugs_qa_contact_assigned_count 	= sum(assigned_count),
+																				 org_bugs_qa_contact_reassigned_count 	= sum(reassigned_count));
 
 # Merge the "bugs_working_grouped_org_qa_summary" table with the profiles table based on "qa_domain" and "domain"
 setkey(bugs_working_grouped_org_qa_summary , qa_domain);
 setkey(profiles_working, domain);
 profiles_working <- merge(profiles_working, bugs_working_grouped_org_qa_summary , by.x="domain", by.y="qa_domain", all.x=TRUE);
 
-# For any NA entries in the "org_bugs_qa_reassigned_count" column, that means 0, so mutate it accordingly.
-profiles_working <- mutate(profiles_working, org_bugs_qa_reassigned_count = ifelse(is.na(org_bugs_qa_reassigned_count), 0, org_bugs_qa_reassigned_count));
+# For any NA entries in the count columns, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_bugs_qa_contact_reopened_count 	= ifelse(is.na(org_bugs_qa_contact_reopened_count), 	0, org_bugs_qa_contact_reopened_count),
+											 org_bugs_qa_contact_assigned_count 	= ifelse(is.na(org_bugs_qa_contact_assigned_count), 	0, org_bugs_qa_contact_assigned_count),
+											 org_bugs_qa_contact_reassigned_count 	= ifelse(is.na(org_bugs_qa_contact_reassigned_count), 	0, org_bugs_qa_contact_reassigned_count));
 
 
 # PROFILES-USER-ACTIVITY-ASSIGNING
@@ -1197,7 +1320,7 @@ activity_base_reopened <- filter(activity_base, (			  added=="REOPENED" 	& field
 # Use DPLYR's group_by() function to organize the activity_base_reopened table according to the "who" did the reopening actiivty
 activity_base_reopened_grouped_who <- group_by(activity_base_reopened, who);
 
-# Use DPLYR's summarize() function to sum reopening activity according for each user
+# Use DPLYR's summarize() function to count reopening activity according for each user
 activity_base_reopened_grouped_who_summary <- summarize(activity_base_reopened_grouped_who, user_activity_reopening_count = n());
 
 # Merge the "activity_base_reopened_grouped_who_summary" table with the profiles table according to "who" and "userid"
@@ -1216,7 +1339,7 @@ profiles_working <- mutate(profiles_working, user_activity_reopening_count = ife
 # Use DPLYR's group_by() function to organize the activity_base_reopened table according to the "domain" that did the reopening actiivty
 activity_base_reopened_grouped_domain <- group_by(activity_base_reopened, domain);
 
-# Use DPLYR's summarize() function to sum reopening activity according for each org
+# Use DPLYR's summarize() function to count reopening activity according for each org
 activity_base_reopened_grouped_domain_summary <- summarize(activity_base_reopened_grouped_domain, org_activity_reopening_count = n());
 
 # Merge the "activity_base_reopened_grouped_domain_summary" table with the profiles table according to "domain"
@@ -1228,6 +1351,454 @@ profiles_working <- merge(profiles_working, activity_base_reopened_grouped_domai
 profiles_working <- mutate(profiles_working, org_activity_reopening_count = ifelse(is.na(org_activity_reopening_count), 0, org_activity_reopening_count));
 
 
+# PROFILES-USER-ATTACHMENT_ALL
+# (Track how many attachments each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_all_grouped_submitter <- group_by(attachments_base, submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_all_grouped_submitter_summary <- summarize(attachments_base_all_grouped_submitter, user_attachments_count = n());
+
+# Merge the "attachments_base_all_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_all_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_all_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_count = ifelse(is.na(user_attachments_count), 0, user_attachments_count));
+
+
+# PROFILES-ORG-ATTACHMENT_ALL
+# (Track how many attachments each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_all_grouped_domain <- group_by(attachments_base, domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_all_grouped_domain_summary <- summarize(attachments_base_all_grouped_domain, org_attachments_count = n());
+
+# Merge the "attachments_base_all_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_all_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_all_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_count = ifelse(is.na(org_attachments_count), 0, org_attachments_count));
+
+
+# PROFILES-USER-ATTACHMENT_PATCH
+# (Track how many attachments that were patches each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_patch_grouped_submitter <- group_by(filter(attachments_base, ispatch==TRUE), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_patch_grouped_submitter_summary <- summarize(attachments_base_patch_grouped_submitter, user_attachments_patch_count = n());
+
+# Merge the "attachments_base_patch_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_patch_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_patch_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_patch_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_patch_count = ifelse(is.na(user_attachments_patch_count), 0, user_attachments_patch_count));
+
+
+# PROFILES-ORG-ATTACHMENT_PATCH
+# (Track how many attachments that were patches each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_patch_grouped_domain <- group_by(filter(attachments_base, ispatch==TRUE), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_patch_grouped_domain_summary <- summarize(attachments_base_patch_grouped_domain, org_attachments_patch_count = n());
+
+# Merge the "attachments_base_patch_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_patch_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_patch_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_patch_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_patch_count = ifelse(is.na(org_attachments_patch_count), 0, org_attachments_patch_count));
+
+
+# PROFILES-USER-ATTACHMENT_APPLICATION
+# (Track how many attachments that were applications each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_application_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% application_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_application_grouped_submitter_summary <- summarize(attachments_base_application_grouped_submitter, user_attachments_application_count = n());
+
+# Merge the "attachments_base_application_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_application_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_application_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_application_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_application_count = ifelse(is.na(user_attachments_application_count), 0, user_attachments_application_count));
+
+
+# PROFILES-ORG-ATTACHMENT_APPLICATION
+# (Track how many attachments that were applications each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_application_grouped_domain <- group_by(filter(attachments_base, mimetype %in% application_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_application_grouped_domain_summary <- summarize(attachments_base_application_grouped_domain, org_attachments_application_count = n());
+
+# Merge the "attachments_base_application_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_application_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_application_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_application_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_application_count = ifelse(is.na(org_attachments_application_count), 0, org_attachments_application_count));
+
+
+# PROFILES-USER-ATTACHMENT_AUDIO
+# (Track how many attachments that were audio each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_audio_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% audio_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_audio_grouped_submitter_summary <- summarize(attachments_base_audio_grouped_submitter, user_attachments_audio_count = n());
+
+# Merge the "attachments_base_audio_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_audio_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_audio_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_audio_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_audio_count = ifelse(is.na(user_attachments_audio_count), 0, user_attachments_audio_count));
+
+
+# PROFILES-ORG-ATTACHMENT_AUDIO
+# (Track how many attachments that were audio each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_audio_grouped_domain <- group_by(filter(attachments_base, mimetype %in% audio_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_audio_grouped_domain_summary <- summarize(attachments_base_audio_grouped_domain, org_attachments_audio_count = n());
+
+# Merge the "attachments_base_audio_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_audio_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_audio_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_audio_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_audio_count = ifelse(is.na(org_attachments_audio_count), 0, org_attachments_audio_count));
+
+
+# PROFILES-USER-ATTACHMENT_IMAGE
+# (Track how many attachments that were images each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_image_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% image_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_image_grouped_submitter_summary <- summarize(attachments_base_image_grouped_submitter, user_attachments_image_count = n());
+
+# Merge the "attachments_base_image_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_image_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_image_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_image_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_image_count = ifelse(is.na(user_attachments_image_count), 0, user_attachments_image_count));
+
+
+# PROFILES-ORG-ATTACHMENT_IMAGE
+# (Track how many attachments that were images each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_image_grouped_domain <- group_by(filter(attachments_base, mimetype %in% image_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_image_grouped_domain_summary <- summarize(attachments_base_image_grouped_domain, org_attachments_image_count = n());
+
+# Merge the "attachments_base_image_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_image_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_image_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_image_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_image_count = ifelse(is.na(org_attachments_image_count), 0, org_attachments_image_count));
+
+
+# PROFILES-USER-ATTACHMENT_MESSAGE
+# (Track how many attachments that were messages each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_message_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% message_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_message_grouped_submitter_summary <- summarize(attachments_base_message_grouped_submitter, user_attachments_message_count = n());
+
+# Merge the "attachments_base_message_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_message_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_message_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_message_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_message_count = ifelse(is.na(user_attachments_message_count), 0, user_attachments_message_count));
+
+
+# PROFILES-ORG-ATTACHMENT_MESSAGE
+# (Track how many attachments that were messages each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_message_grouped_domain <- group_by(filter(attachments_base, mimetype %in% message_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_message_grouped_domain_summary <- summarize(attachments_base_message_grouped_domain, org_attachments_message_count = n());
+
+# Merge the "attachments_base_message_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_message_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_message_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_message_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_message_count = ifelse(is.na(org_attachments_message_count), 0, org_attachments_message_count));
+
+
+# PROFILES-USER-ATTACHMENT_MODEL
+# (Track how many attachments that were models each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_model_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% model_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_model_grouped_submitter_summary <- summarize(attachments_base_model_grouped_submitter, user_attachments_model_count = n());
+
+# Merge the "attachments_base_model_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_model_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_model_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_model_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_model_count = ifelse(is.na(user_attachments_model_count), 0, user_attachments_model_count));
+
+
+# PROFILES-ORG-ATTACHMENT_MODEL
+# (Track how many attachments that were models each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_model_grouped_domain <- group_by(filter(attachments_base, mimetype %in% model_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_model_grouped_domain_summary <- summarize(attachments_base_model_grouped_domain, org_attachments_model_count = n());
+
+# Merge the "attachments_base_model_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_model_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_model_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_model_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_model_count = ifelse(is.na(org_attachments_model_count), 0, org_attachments_model_count));
+
+
+# PROFILES-USER-ATTACHMENT_MULTIPART
+# (Track how many attachments that were multipart each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_multipart_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% multipart_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_multipart_grouped_submitter_summary <- summarize(attachments_base_multipart_grouped_submitter, user_attachments_multipart_count = n());
+
+# Merge the "attachments_base_multipart_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_multipart_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_multipart_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_multipart_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_multipart_count = ifelse(is.na(user_attachments_multipart_count), 0, user_attachments_multipart_count));
+
+
+# PROFILES-ORG-ATTACHMENT_MULTIPART
+# (Track how many attachments that were multipart each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_multipart_grouped_domain <- group_by(filter(attachments_base, mimetype %in% multipart_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_multipart_grouped_domain_summary <- summarize(attachments_base_multipart_grouped_domain, org_attachments_multipart_count = n());
+
+# Merge the "attachments_base_multipart_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_multipart_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_multipart_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_multipart_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_multipart_count = ifelse(is.na(org_attachments_multipart_count), 0, org_attachments_multipart_count));
+
+
+# PROFILES-USER-ATTACHMENT_TEXT
+# (Track how many attachments that were text each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_text_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% text_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_text_grouped_submitter_summary <- summarize(attachments_base_text_grouped_submitter, user_attachments_text_count = n());
+
+# Merge the "attachments_base_text_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_text_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_text_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_text_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_text_count = ifelse(is.na(user_attachments_text_count), 0, user_attachments_text_count));
+
+
+# PROFILES-ORG-ATTACHMENT_TEXT
+# (Track how many attachments that were text each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_text_grouped_domain <- group_by(filter(attachments_base, mimetype %in% text_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_text_grouped_domain_summary <- summarize(attachments_base_text_grouped_domain, org_attachments_text_count = n());
+
+# Merge the "attachments_base_text_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_text_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_text_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_text_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_text_count = ifelse(is.na(org_attachments_text_count), 0, org_attachments_text_count));
+
+
+# PROFILES-USER-ATTACHMENT_VIDEO
+# (Track how many attachments that were video each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_video_grouped_submitter <- group_by(filter(attachments_base, mimetype %in% video_mimetypes$Template), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_video_grouped_submitter_summary <- summarize(attachments_base_video_grouped_submitter, user_attachments_video_count = n());
+
+# Merge the "attachments_base_video_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_video_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_video_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_video_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_video_count = ifelse(is.na(user_attachments_video_count), 0, user_attachments_video_count));
+
+
+# PROFILES-ORG-ATTACHMENT_VIDEO
+# (Track how many attachments that were video each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_video_grouped_domain <- group_by(filter(attachments_base, mimetype %in% video_mimetypes$Template), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_video_grouped_domain_summary <- summarize(attachments_base_video_grouped_domain, org_attachments_video_count = n());
+
+# Merge the "attachments_base_video_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_video_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_video_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_video_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_video_count = ifelse(is.na(org_attachments_video_count), 0, org_attachments_video_count));
+
+
+# PROFILES-USER-ATTACHMENT_UNKNOWN
+# (Track how many attachments that were an unknown type each user has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "submitter_id" who submitted the attachment
+attachments_base_unknown_grouped_submitter <- group_by(filter(attachments_base, !(mimetype %in% c(application_mimetypes$Template,
+																								  audio_mimetypes$Template,
+																								  image_mimetypes$Template,
+																								  message_mimetypes$Template,
+																								  model_mimetypes$Template,
+																								  multipart_mimetypes$Template,
+																								  text_mimetypes$Template,
+																								  video_mimetypes$Template))), submitter_id);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each user
+attachments_base_unknown_grouped_submitter_summary <- summarize(attachments_base_unknown_grouped_submitter, user_attachments_unknown_count = n());
+
+# Merge the "attachments_base_unknown_grouped_submitter_summary" table with the profiles table according to "submitter_id" and "userid"
+setkey(attachments_base_unknown_grouped_submitter_summary, submitter_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, attachments_base_unknown_grouped_submitter_summary, by.x="userid", by.y="submitter_id", all.x=TRUE);
+
+# For any NA entries in the "user_attachments_unknown_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, user_attachments_unknown_count = ifelse(is.na(user_attachments_unknown_count), 0, user_attachments_unknown_count));
+
+
+# PROFILES-ORG-ATTACHMENT_UNKNOWN
+# (Track how many attachments that were an unknown type each org has submitted)
+
+# Use DPLYR's group_by() function to organize the attachments_base table according to the "domain" that submitted the attachment
+attachments_base_unknown_grouped_domain <- group_by(filter(attachments_base, !(mimetype %in% c(application_mimetypes$Template,
+																								  audio_mimetypes$Template,
+																								  image_mimetypes$Template,
+																								  message_mimetypes$Template,
+																								  model_mimetypes$Template,
+																								  multipart_mimetypes$Template,
+																								  text_mimetypes$Template,
+																								  video_mimetypes$Template))), domain);
+
+# Use DPLYR's summarize() function to count attachment submission activity according for each domain
+attachments_base_unknown_grouped_domain_summary <- summarize(attachments_base_unknown_grouped_domain, org_attachments_unknown_count = n());
+
+# Merge the "attachments_base_unknown_grouped_domain_summary" table with the profiles table according to "domain"
+setkey(attachments_base_unknown_grouped_domain_summary, domain);
+setkey(profiles_working, domain);
+profiles_working <- merge(profiles_working, attachments_base_unknown_grouped_domain_summary, by="domain", all.x=TRUE);
+
+# For any NA entries in the "org_attachments_unknown_count" column, that means 0, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, org_attachments_unknown_count = ifelse(is.na(org_attachments_unknown_count), 0, org_attachments_unknown_count));
+
+
+# PROFILES-BUGS-ATTACHMENTS_USER_KNOWLEDGE_ACTORS & PROFILES-BUGS-ATTACHMENTS_ORG_KNOWLEDGE_ACTORS
+# I operationalize user/org knowledge actors as users/orgs who have done at least one of: report a bug, be assigned_to a bug, be qa_contact for a bug, submit an attachment of any type for a bug
+profiles_working <- mutate(profiles_working, user_knowledge_actor = ifelse((user_bugs_reported_count  > 0 |
+																			user_bugs_assigned_count  >	0 |
+																			user_bugs_qa_count		  >	0 |
+																			user_attachments_count	  >	0 ), TRUE, FALSE), 
+											 org_knowledge_actor  = ifelse((org_bugs_reported_count   > 0 |
+																			org_bugs_assigned_count   >	0 |
+																			org_bugs_qa_count		  >	0 |
+																			org_attachments_count	  >	0 ), TRUE, FALSE));
+
+
+# PROFILES-GROUPS_USER_CORE_ACTORS & PROFILES-GROUPS_ORG_CORE_ACTORS
+																			
+
+
+																			
+																			
+# PROFILES-BUGS-ATTACHMENTS_USER_PERIPHERAL_ACTORS
+# I operationalize user peripheral actors as those who are not any other actor type
+
+
+# PROFILES-BUGS-ATTACHMENTS_ORG_PERIPHERAL_ACTORS
+# I operationalize org peripheral actors as those who are not any other actor type
+
+
+
+
+# BUGS-CC_KNOWLEDGE_ACTORS
+
+
+# BUGS-CC_PERIPHERAL_ACTORS
+
+
+# BUGS-CC_PERIPHERAL_ACTORS
+
+
+# BUGS-CC_PERIPHERAL_ACTORS
 
 
 
@@ -1247,8 +1818,12 @@ longdescs_interactions	<<- longdescs_working;
 
 
 run_main <- function () {
+	set_parameters();
 	load_libraries();
 	load_bugzilla_data();
+	# load_compustat_data();
+	load_mimetypes();
+	# clean_compustat_data();
 	clean_bugzilla_data();
 	operationalize_base();
 	operationalize_interactions();

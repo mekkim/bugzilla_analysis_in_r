@@ -3,7 +3,7 @@ Analyzing Mozilla's Bugzilla Database Using R
 © 2015 by Mekki MacAulay, mekki@mekki.ca http://mekki.ca http://twitter.com/mekki			
 Some rights reserved.													
 
-Current version created on November 4, 2015								
+Current version created on November 5, 2015								
 
 This program is free and open source software. The author licenses it	
 to you under the terms of the GNU General Public License (GPL), as 		
@@ -25,10 +25,6 @@ To execute the script file in R, use the following commands:
 setwd('<FULL PATH TO THIS SCRIPT FILE>');
 source('<NAME OF THIS FILE>.r', echo=TRUE, max.deparse.length=100000, keep.source=TRUE, verbose=TRUE);
 (These source() parameters ensure that the R shell outputs the script commands and responses. Otherwise, they're hidden by default.)
-
-For example (while timing the execution):
-setwd('c:/Users/atriou/Dropbox/Classes and York Stuff/Dissertation and brainstorming/Scripts/R');
-system.time(source('dissertation.r', echo=TRUE, max.deparse.length=100000, keep.source=TRUE, verbose=TRUE));
 
 Or, from the command prompt directly as follows (assuming R binary is in the PATH environment variable):
 cd <FULL PATH TO THIS SCRIPT FILE>
