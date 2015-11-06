@@ -150,6 +150,7 @@
 # sqldf
 # sqlutils
 # stargazer
+# tidyr
 # timeDate
 # utils
 # xkcd
@@ -215,9 +216,10 @@ library(RMySQL);
 # Load the Data.table library for data.table objects and fread() function
 library(data.table);
 
-# Load plyr and dplyr libraries for operation functions
+# Load plyr and dplyr and tidyr libraries for data table manipulation functions
 library(plyr);
 library(dplyr);
+library(tidyr);
 
 # Load chron for easy date-time manipulation and calculation
 library(chron);
@@ -757,6 +759,83 @@ setkey(profiles_working, domain);
 profiles_working <- merge(profiles_working, activity_org_count, by="domain", all.x=TRUE);
 profiles_working <- dplyr::rename(profiles_working, org_activity_count = Freq);
 
+# PROFILE-GROUP_MEMBERS
+
+# Add logical columns for each of group & group bless properties to each profile for easy lookup
+# As of end 2012, only 12 of 14 in schema are used.  bz_sudo_protect (31) & bz_quip_moderators (87) are not used
+# Select just the user_id, group_id, & isbless columns from group_members_base
+group_members_working <- select(group_members_base, user_id, group_id, isbless);
+
+# Use data.table's dcast() function to recast the table such that each row is a single user_id and
+# there are 2 columsn for each group, one representing membership, and one representing isbless. 
+group_members_working <- dcast(group_members_working, user_id ~ group_id + isbless, drop=FALSE, value.var="isbless");
+
+# The dcast created columns that start with digits, which are difficult to work with, so first append "arg" in front of each column name
+names(group_members_working) <- gsub("^(\\d)", "arg\\1", names(group_members_working), perl=TRUE);
+					
+# Rename and change the variable types from integer to logical
+group_members_working <- transmute(group_members_working, user_id = user_id,
+														can_edit_parameters 			= as.logical(arg1_0),
+														can_edit_parameters_bless 		= as.logical(arg1_1),
+														can_edit_groups					= as.logical(arg3_0),
+														can_edit_groups_bless			= as.logical(arg3_1),
+														can_edit_components				= as.logical(arg4_0),
+														can_edit_components_bless		= as.logical(arg4_1),
+														can_edit_keywords				= as.logical(arg7_0),
+														can_edit_keywords_bless			= as.logical(arg7_1),
+														can_edit_users					= as.logical(arg8_0),
+														can_edit_users_bless			= as.logical(arg8_1),
+														can_edit_bugs					= as.logical(arg9_0),
+														can_edit_bugs_bless				= as.logical(arg9_1),
+														can_confirm						= as.logical(arg10_0),
+														can_confirm_bless				= as.logical(arg10_1),
+														can_admin						= as.logical(arg13_0),
+														can_admin_bless					= as.logical(arg13_1),
+														can_edit_classifications 		= as.logical(arg18_0),
+														can_edit_classifications_bless	= as.logical(arg18_1),
+														can_edit_whine_self				= as.logical(arg19_0),
+														can_edit_whine_self_bless		= as.logical(arg19_1),
+														can_edit_whine_others			= as.logical(arg20_0),
+														can_edit_whine_others_bless		= as.logical(arg20_1),
+														can_sudo						= as.logical(arg30_0),
+														can_sudo_bless					= as.logical(arg30_1));					
+
+# Change the non_NA values to "TRUE" and then the NA values to "FALSE"
+group_members_working[group_members_working==FALSE] <- TRUE;
+group_members_working[is.na(group_members_working)] <- FALSE;
+
+
+# Merge the group_members_working table with the profiles table based on "user_id" and "userid"
+setkey(group_members_working, user_id);
+setkey(profiles_working, userid);
+profiles_working <- merge(profiles_working, group_members_working, by.x="userid", by.y="user_id", all.x=TRUE);
+
+
+# For any NA entries in any of the "can_" columns, that means FALSE, so mutate it accordingly.
+profiles_working <- mutate(profiles_working, 			can_edit_parameters 			= ifelse(is.na(can_edit_parameters), 			FALSE, can_edit_parameters),
+														can_edit_parameters_bless 		= ifelse(is.na(can_edit_parameters_bless), 		FALSE, can_edit_parameters_bless),
+														can_edit_groups					= ifelse(is.na(can_edit_groups), 				FALSE, can_edit_groups),
+														can_edit_groups_bless			= ifelse(is.na(can_edit_groups_bless), 			FALSE, can_edit_groups_bless),
+														can_edit_components				= ifelse(is.na(can_edit_components), 			FALSE, can_edit_components),
+														can_edit_components_bless		= ifelse(is.na(can_edit_components_bless), 		FALSE, can_edit_components_bless),
+														can_edit_keywords				= ifelse(is.na(can_edit_keywords), 				FALSE, can_edit_keywords),
+														can_edit_keywords_bless			= ifelse(is.na(can_edit_keywords_bless), 		FALSE, can_edit_keywords_bless),
+														can_edit_users					= ifelse(is.na(can_edit_users), 				FALSE, can_edit_users),
+														can_edit_users_bless			= ifelse(is.na(can_edit_users_bless), 			FALSE, can_edit_users_bless),
+														can_edit_bugs					= ifelse(is.na(can_edit_bugs), 					FALSE, can_edit_bugs),
+														can_edit_bugs_bless				= ifelse(is.na(can_edit_bugs_bless), 			FALSE, can_edit_bugs_bless),
+														can_confirm						= ifelse(is.na(can_confirm), 					FALSE, can_confirm),
+														can_confirm_bless				= ifelse(is.na(can_confirm_bless), 				FALSE, can_confirm_bless),
+														can_admin						= ifelse(is.na(can_admin), 						FALSE, can_admin),
+														can_admin_bless					= ifelse(is.na(can_admin_bless), 				FALSE, can_admin_bless),
+														can_edit_classifications 		= ifelse(is.na(can_edit_classifications), 		FALSE, can_edit_classifications),
+														can_edit_classifications_bless	= ifelse(is.na(can_edit_classifications_bless), FALSE, can_edit_classifications_bless),
+														can_edit_whine_self				= ifelse(is.na(can_edit_whine_self	), 			FALSE, can_edit_whine_self	),
+														can_edit_whine_self_bless		= ifelse(is.na(can_edit_whine_self_bless), 		FALSE, can_edit_whine_self_bless),
+														can_edit_whine_others			= ifelse(is.na(can_edit_whine_others), 			FALSE, can_edit_whine_others),
+														can_edit_whine_others_bless		= ifelse(is.na(can_edit_whine_others_bless), 	FALSE, can_edit_whine_others_bless),
+														can_sudo						= ifelse(is.na(can_sudo), 						FALSE, can_sudo),
+														can_sudo_bless					= ifelse(is.na(can_sudo_bless), 				FALSE, can_sudo_bless));			
 
 # PROFILES-USER-BUGS_REPORTED
 
@@ -1004,7 +1083,7 @@ bugs_working <- merge(bugs_working, activity_reassigned_summary, by="bug_id", al
 bugs_working <- mutate(bugs_working, reassigned_count = ifelse(is.na(reassigned_count), 0, reassigned_count));
 
 
-# BUGS-LONGDESCS-DESCRIPTION-LENGTH
+# BUGS-LONGDESCS-TITLE_AND_DESCRIPTION_LENGTH
 
 # Count the number of chracters in the title ("short_desc") and make that its own column, "title_length"
 # Since nchar() returns 2 when title is blank, our ifelse catches that case and sets it to 0
@@ -1038,7 +1117,7 @@ bugs_working <- merge(bugs_working, longdescs_working_distinct, by="bug_id", all
 bugs_working <- dplyr::rename(bugs_working, description_length = comment_length);
 
 
-# BUGS-LONGDESCS-COMMENTS-LENGTH
+# BUGS-LONGDESCS-COMMENTS_LENGTH
 
 # We can reuse the longdescs_working variable from above, so no need to import it again
 # It already has the comment length column added.  We just need to sum those for each bug_id
