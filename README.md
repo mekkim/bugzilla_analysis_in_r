@@ -1,9 +1,7 @@
 Analyzing Mozilla's Bugzilla Database Using R	
 
 © 2015 by Mekki MacAulay, mekki@mekki.ca http://mekki.ca http://twitter.com/mekki			
-Some rights reserved.													
-
-Current version created on November 5, 2015								
+Some rights reserved.																			
 
 This program is free and open source software. The author licenses it	
 to you under the terms of the GNU General Public License (GPL), as 		
@@ -120,7 +118,7 @@ DT
 FactoMineR
 FSA: https://www.rforge.net/FSA/Installation.html -> Not needed with dplyr::filter, which is much faster
 ggplot2
-googleVis https://cran.r-project.org/web/packages/googleVis/index.html
+googleVis https://cran.r-project.org/web/packages/googleVis/index.html -> Not currently used. Seems buggy.
 graphics
 gWidgets
 gWidgetsRGtk2
@@ -145,6 +143,7 @@ RQDA
 sqldf
 sqlutils
 stargazer
+tidyr
 timeDate
 utils
 xkcd
