@@ -1,7 +1,8 @@
 # Analyzing Mozilla's Bugzilla Database Using R	
 
-© 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca)
-LinkedIn: [http://mekki.ca](http://mekki.ca) 
+---
+© 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca)  
+LinkedIn: [http://mekki.ca](http://mekki.ca)   
 Twitter: [@mekki](http://twitter.com/mekki)			
 Some rights reserved.																			
 
@@ -18,7 +19,7 @@ For the full text of the GNU General Public License, please visit
 http://gnu.org/licenses/													
 Should you require an alternative licensing arrangement for this 		
 software, please contact the author.	                                
-
+---
 
 To execute the script file in R, use the following commands:
 ```R
@@ -46,8 +47,9 @@ The CAT is necessary because by default R output writes to file, not command pro
 5. A PERL installation (tested on ActivePerl 5.22.1.2201)
 6. A Tree-Tagger installation
 
-The following sections describe the process for installing these necesities
+The following sections describe the process for installing these necesities.
 
+---
 ## INSTALL MYSQL SERVER
 
 Visit: https://dev.mysql.com/downloads/windows/installer/5.5.html
@@ -72,6 +74,7 @@ Add the mysql/bin folder to the PATH system environment
 Its default location is C:\Program Files\MySQL\MySQL Server 5.5\bin, but could
 vary depending on your install parameters
 
+---
 ## RESTORE BUGZILLA DATABASE (Current version includes data until end of 2012)
 
 Decompress/untar the Bugzilla database.  The result is a MySQL-formatted dumpfile with a .sql extension
@@ -88,7 +91,7 @@ mysql -uroot -ppassword bugs < bugzilla.sql
 The last command will execute for several minutes as it populates the database with the dumpfile data 
 The result will be a database named "bugs" on the MySQL server, filled with the Bugzilla data
 
-
+---
 ## INSTALL AND CONFIGURE R (Statistical package) or Microsoft R Open (MRO - From Revolution Analytics)
 
 Visit: http://cran.utstat.utoronto.ca/bin/windows/base/ or another mirror
@@ -167,6 +170,7 @@ Example:
 install.packages(c("bit64", "curl", "data.table", "devtools", "dplyr", "ggplot2", "RGtk2", "RMySQL", "stargazer", "textcat", "tidyr", "utils", "xlsx", "doParallel", "itertools", "iterators", "RCurl", "sqlutils", "timeDate", "tm"));
 ```
 
+---
 ## INSTALL AND CONFIGURE PHP
 
 Download the latest zip installer package from http://windows.php.net/download/
@@ -197,7 +201,7 @@ Follow the instructions here to install "PHP Domain Parser" using Composer: http
 
 The small php program "domainparser.php" is provided and uses the installed domain parser library
 
-
+---
 ## INSTALL AND CONFIGURE TREE TAGER
 
 Download the latest Tree Tager version from http://www.cis.uni-muenchen.de/~schmid/tools/TreeTagger/
@@ -211,7 +215,7 @@ Pay particular attention to the PATH environment variable setting so that the R 
 After you're all done, to to the treetagger/lib directory and copy the english-utf8.par file to english.par because
 koRpus has the name hardcoded.
 
-
+---
 ## INSTALL AND CONFIGURE PERL
 
 Tree Tagger depends on PERL, so we need to intall it.
@@ -219,4 +223,3 @@ We assume Windows, so use download the latest version of Active Perl 64-bit here
 Run the installer as administrator.  Default values should be fine.
 Reboot the system
 Verify that the PERL executable shows up in the system PATH
-
