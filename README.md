@@ -18,10 +18,10 @@ PURPOSE. See the GNU General Public License for more details.
 For the full text of the GNU General Public License, please visit		
 http://gnu.org/licenses/													
 Should you require an alternative licensing arrangement for this 		
-software, please contact the author.	                                
+software, please contact the author.
+	                                
 ---
-
-To execute the script file in R, use the following commands:
+## To execute the script file in R, use the following commands:
 ```R
 setwd('<FULL PATH TO THIS SCRIPT FILE>');
 source('<NAME OF THIS FILE>.r', echo=TRUE, max.deparse.length=100000, keep.source=TRUE, verbose=TRUE);
@@ -37,7 +37,7 @@ CAT <NAME OF THIS FILE>.Rout
 ```
 The CAT is necessary because by default R output writes to file, not command prompt
 
-
+---
 ## This script depends on:
 
 1. An updated (>3.2.0) R installation with the appropriate packages
