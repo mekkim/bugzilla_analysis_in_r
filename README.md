@@ -1,6 +1,6 @@
 # Analyzing Mozilla's Bugzilla Database Using R	
 
-© 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca}
+© 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca)
 LinkedIn: [http://mekki.ca](http://mekki.ca) 
 Twitter: [@mekki](http://twitter.com/mekki)			
 Some rights reserved.																			
