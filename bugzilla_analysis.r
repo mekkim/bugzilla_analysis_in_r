@@ -39,9 +39,14 @@
 #
 #################################################################################
 #
-# This script depends on the presence of an updated R installation along with a
-# MySQL installation containing the Mozilla Bugzilla database and a
-# PHP utility script for domain name parsing
+# This script depends on:
+#
+# 1) An updated (>3.2.0) R installation with the appropriate packages
+# 2) A MySQL (tested on 5.5.xx) installation containing the Mozilla Bugzilla database to analyze
+# 3) A PHP installation (tested on 5.6.14)
+# 4) A PHP utility script for domain name parsing
+# 5) A PERL installation (tested on ActivePerl 5.22.1.2201)
+# 6) A Tree-Tagger installation
 #
 # The following sections describe the process for installing these necesities
 #
