@@ -154,7 +154,8 @@ http://cran.r-project.org/src/base/NEWS
   - xlsx
   - zipcode
 
-and all of the recursive dependencies of these listed packages (should do it automatically for you)
+and all of the recursive dependencies of these listed packages (should do it automatically for you) 
+
 NOTE: This might take a while...
 
 Example:
