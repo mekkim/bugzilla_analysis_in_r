@@ -12,6 +12,7 @@
 *.Rdx       binary
 *.Rmd  text
 *.R    text
+*.r    text
 *.php  text
 
 # Lookup files
@@ -34,3 +35,8 @@
 
 # We don't want Git messing with CSV files
 *.csv   -text
+
+
+# Linguist auto-detection in GitHug:
+*.R linguist-language=R
+*.r linguist-language=R

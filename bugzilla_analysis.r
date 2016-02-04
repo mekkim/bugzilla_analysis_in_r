@@ -233,6 +233,10 @@
 # 								START OF SCRIPT									#
 #################################################################################
 
+# Set vim & emacs modelines for Github
+# vim: syntax=R
+# -*- mode: R;-*-
+
 
 # SET USER-DEFINED PARAMETERS
 set_parameters <- function () {
