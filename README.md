@@ -149,7 +149,6 @@ http://cran.r-project.org/src/base/NEWS
   - tidyr
   - timeDate
   - tm (for text mining)
-  - utils
   - xkcd
   - xlsx
   - zipcode
@@ -160,7 +159,7 @@ NOTE: This might take a while...
 
 Example:
 ```R
-install.packages(c("bit64", "curl", "data.table", "devtools", "dplyr", "ggplot2", "RGtk2", "RMySQL", "stargazer", "textcat", "tidyr", "utils", "xlsx", "doParallel", "itertools", "iterators", "RCurl", "sqlutils", "timeDate", "tm"));
+install.packages(c("bit64", "curl", "data.table", "devtools", "dplyr", "ggplot2", "RGtk2", "RMySQL", "stargazer", "textcat", "tidyr", "xlsx", "doParallel", "itertools", "iterators", "RCurl", "sqlutils", "timeDate", "tm", "chron", "knitr", "xtable"));
 ```
 
 ---

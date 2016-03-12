@@ -1,0 +1,18 @@
+# March 12, 2016:
+
+- Added year-based learning effect outcome variables at profile- & org-levels
+- Added bug priority interactions to match bug severity interactions
+- Fixed timezone bug with activity timestamps
+- Removed pre-1998 entries due to bad data
+- Added additional profile-level interaction variables
+- Some memory management improvements to deal with additional load
+- Additional functions to read datasets that are slow to create from pre-created CSV files
+- Standardized & fixed some variable names
+- Added timing tracking for each function separately to help identify bottlenecks
+- Fixed n power vs. mean/percent interpretation issues, including cross-level isomorphism problems
+- Cleaned up formatting
+- Added numerous variables split up per year
+- Added log-file reporting of multicore processes to make status-tracking easier on long calculations
+- Added profiles-bug_lifecycle_violation tendencies
+- Added profiles-distinct actors tendencies
+- Added numerous org-level tendencies
