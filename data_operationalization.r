@@ -1,6 +1,15 @@
+#################################################################################
+#																				#
+# Determinants of success of the open source selective revealing strategy: 		#
+#		Solution knowledge emergence and knowledge adoption						#
+#																				#
+#		R Code to Reproduce Quantatitive Data Analysis of Dissertation			#
+#																				#
+#################################################################################
+#
 # # Analyzing Mozilla's Bugzilla Database Using R	
 #
-# Current version: March 12, 2016
+# Current version: April 5, 2016 - Data Operationalization Code
 # 
 # ---
 # © 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca), [LinkedIn](http://mekki.ca), [Twitter](http://twitter.com/mekki)			
@@ -220,6 +229,16 @@
 #
 # END OF DEPENDENCIES TO RUN SCRIPT
 #
+#---
+# IMPORTANT NOTE
+# 
+# This script only handles the data operationalization portion of the analysis.  
+# The analysis is handled via accompanying scripts at various levels (e.g., bug_level_analysis.r, profile_level_analysis.r, org_level_analysis.r, etc.)
+# At the end of this operationalization, the final tables should be exported in RData binary format.
+# The separate level analysis script files import the relevant tables from RData binary format only to preserve operationalized specifics
+# that cannot be properly represented in CSV format or exported to common database formats
+#
+# 
 #################################################################################
 
 #################################################################################
@@ -264,6 +283,7 @@ CORRECT_TYPO_DOMAINS						<<- TRUE;
 DELETE_TEST_BUGS							<<- FALSE;
 ALLOW_INVALID_TLDS							<<- TRUE;
 ALLOW_UNUSUAL_TLDS							<<-	TRUE;
+MIN_ORG_SIZE								<<- 1L;	   # Filters out org-level values when org is aggregating less than MIN_ORG_SIZE profiles
 
 # Remote or local retrieval for infrequently changing data?
 LOAD_MIMETYPES_FROM_REMOTE_DB				<<- FALSE; 
@@ -278,6 +298,12 @@ EXPORT_MIMETYPES_TO_FILE					<<- FALSE; # Outputs mimetype variables to local CS
 EXPORT_BUGS_VARIABLES_AT_CREATION_TO_FILE	<<- FALSE; # Outputs variables related to other bugs at the time of each bug's creation calculated in RUN_SLOW_FUNCTIONS to CSV
 EXPORT_NGRAM_DISTANCES_TO_FILE  			<<- FALSE; # Outputs NGRAM Distances calculated in RUN_SLOW_FUNCTIONS to CSV
 EXPORT_SUMMARY_TABLES_TO_FILE				<<- FALSE; # Currently only outputs bugs_summary table to file. Ignored if RUN_BUGS_SUMMARY_FUNCTION==FALSE
+EXPORT_FINAL_TABLES_TO_SINGLE_FILE			<<- TRUE;  # At the end of the operationalization, export the final files in binary RData format together 
+EXPORT_FINAL_TABLES_TO_SEPARATE_FILES		<<- TRUE;  # or semparately for import in the associated analysis scripts
+
+# Session parameters
+REMOVE_BASE_VARS							<<- TRUE;  # If true, deletes base vars after final vars are calculated and runs garbage collection before returning to interactive session to free up memory
+
 
 } # End set_parameters function
 
@@ -287,7 +313,7 @@ set_options <- function () {
 
 # Increase the memory limit to force Windows to use the pagefile for all other processes and allocate 
 # maximum amount of physical RAM to R in MB
-memory.limit(120000);
+memory.limit(140000);
 
 # Set warnings to display as they occur and give verbose output and limit printed output
 options(warn=1, verbose=TRUE, max.print=1000L);
@@ -435,6 +461,65 @@ rowmodes <- function (data_table) {
 			}
 
 
+# MERGE_UPDATE
+# This function merges two tables as all=true (full outer join) such that
+# columns with the same name in table1 that have NA values have those NA values replaced with the
+# appropriate values (by row key & column same name) from table2
+# Credit to Frank http://stackoverflow.com/users/1191259/frank at Stack Overflow for
+# his useful solution to this problem found here: http://stackoverflow.com/questions/36364585/r-efficient-way-to-mergeupdate-table-with-second-table-where-values-from-same
+# Also, thanks to users eddi: http://stackoverflow.com/users/817778/eddi
+# MichaelChirico: http://stackoverflow.com/users/3576984/michaelchirico
+# jangorecki: http://stackoverflow.com/users/2490497/jangorecki
+# for their helpful contributions
+
+# The function should be passed a (left) data.table as table1, and a (right) data.table as table2
+# and a string that has the name of the "by" key upon which to merge them
+# The function returns the merged tables as data.table objects
+merge_update <- function (table1, table2, by) {
+
+	# Check to make sure passed variables are the correct type
+	if(!(is.data.table(table1))) {
+		stop("Variable 'table1' passed to function merge_update must be a data.table. If it's a data.frame or matrix, cast it using as.data.table first.\n");
+	}	
+	
+	if(!(is.data.table(table2))) {
+		stop("Variable 'table2' passed to function merge_update must be a data.table. If it's a data.frame or matrix, cast it using as.data.table first.\n");
+	}	
+	
+	if(!(is.character(by))) {
+		stop("Variable 'by' passed to function merge_update must be a character string.\n");
+	}
+	
+	
+	# Figure out which columns the tables have in common (same name), except for the "by" key column
+	common_columns		<- setdiff(intersect(names(table1), names(table2)), by);
+	
+	# Default data.table::merge creates ".x" and ".y" extensions for common column names, so we'll create a vector of what those names
+	# will be to use later in this function
+	common_columns.x	<- paste0(common_columns, ".x");
+	common_columns.y	<- paste0(common_columns, ".y");
+	
+	# Create combined table using data.table::merge as all=TRUE
+	merged_tables		<- merge(table1, table2, by=by, all=TRUE);
+	
+	# For common columns, replace NAs of table1 with appropriate value from table2
+	for(j in seq_along(common_columns)) {
+		merged_tables[is.na(get(common_columns.x[j])), (common_columns.x[j]) := get(common_columns.y[j])];
+	}
+	
+	# Remove duplicate .y columns from table2
+	merged_tables[, (common_columns.y) := NULL];
+	
+	# Rename columns from table1 to drop .x suffix
+	setnames(merged_tables, common_columns.x, common_columns);
+	
+	# Return the merged & updated table
+	return(merged_tables);
+}
+
+	
+	
+
 # DATA INPUT
 
 # In this step, we create and populate all of the data frames/tables that will be manipulated in the research
@@ -449,7 +534,10 @@ library(RMySQL);
 # Create variable with MySQL database connection details:
 # These details need to match the username, password, database name, and host as 
 # configured during the installation of dependencies
-bugzilla <- dbConnect(MySQL(), user='root', password='password', dbname='bugs', host='localhost');
+bugzilla 		<- dbConnect(MySQL(), user='root', password='password', dbname='bugs', 		host='localhost');
+
+# Connection details for bugs_new database
+bugzilla_new 	<- dbConnect(MySQL(), user='root', password='password', dbname='bugs_new',	host='localhost');
 
 # Create data frame variables for the useful tables in the Bugzilla database
 bugs 				<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM bugs;');
@@ -471,7 +559,12 @@ components			<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM componen
 components_cc		<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM component_cc;');
 components_watch	<<- dbGetQuery(conn = bugzilla, statement = 'SELECT * FROM component_watch;');
 
-# We're now done with the RMySQL library, so detach it to prevent any problems
+# Select just the bugs table from the bugzilla_new database and call it "bugs_new"
+bugs_new			<<- dbGetQuery(conn = bugzilla_new, statement = 'SELECT * FROM bugs;');
+
+# We're now done with the SQL data fetching, disconnect and detach RMySQL library
+dbDisconnect(bugzilla);
+dbDisconnect(bugzilla_new);
 detach("package:RMySQL", unload=TRUE);
 
 # After we've loaded all the data, the MySQL server hogs RAM because of its cashing, so restart it
@@ -620,6 +713,18 @@ if (DELETE_TEST_BUGS) {
 	
 # Rename the default "votes" column to "votes_all_actors_count" to be consistent with other similar variable names
 bugs_working <- dplyr::rename(bugs_working, votes_all_actors_count = votes);
+
+
+
+# BUGS_NEW
+
+# Import the bugs_new table from the previous subroutine to work on
+# Reduce the database to the parts we actually need right now
+# Set field types that were incorrectly autodetected
+bugs_new_working <- bugs_new %>% 	select(bug_id, bug_status, resolution) %>%
+									mutate(bug_id 			= as.factor(bug_id),
+										   resolution		= as.factor(as.character(resolution)));	
+
 
 
 # LONGDESCS
@@ -837,6 +942,7 @@ components_watch_working <- mutate(components_watch_working, user_id		= as.facto
 
 profiles_clean 			<<- as.data.table(profiles_working);
 bugs_clean				<<- as.data.table(bugs_working);
+bugs_new_clean			<<- as.data.table(bugs_new_working);
 longdescs_clean			<<- as.data.table(longdescs_working);
 activity_clean			<<- as.data.table(activity_working);
 cc_clean				<<- as.data.table(cc_working);
@@ -887,7 +993,7 @@ domain_list_unclean <- system("php -f domainparser.php", intern=TRUE);
 # The PHP script returns an unclean version of the registerable domains, so parse out only the registerable domain part
 domain_list <- sub('^.+\\\"(.+)\\\"$', "\\1", domain_list_unclean, ignore.case = TRUE, perl = TRUE);
 
-# Add the original_domain (not imputed) column to the profiles table from the created list
+# Add the original_domain (not imputed/merged with similar domain names, e.g. many Mozilla domains) column to the profiles table from the created list
 # Set the class to factor and type to character to be sure it's read correctly
 # And set the characters to all lowercase, to ensure matching
 profiles_working$original_domain <- as.factor(tolower(as.character(domain_list)));
@@ -1619,7 +1725,18 @@ outcome_lookup <- mutate(outcome_lookup, bug_status = as.factor(as.character(bug
 # Merge the new "outcome" column according to "bug_status" and "resolution" combinations
 setkey(outcome_lookup, bug_status, resolution);
 setkey(bugs_working, bug_status, resolution);
-bugs_working <- merge(bugs_working, outcome_lookup, by=c('bug_status', 'resolution'), all.x=TRUE);
+bugs_working		<- merge(bugs_working, 		outcome_lookup, by=c('bug_status', 'resolution'), all.x=TRUE);
+
+# Repeat with bugs_new_clean
+bugs_new_working	<- merge(bugs_new_clean, 	outcome_lookup, by=c('bug_status', 'resolution'), all.x=TRUE);
+
+# Transmute the bugs_new table to maintain just the bug_id and the outcome, renamed as outcome_new
+bugs_new_working	<- transmute(bugs_new_working, bug_id, outcome_new = outcome);
+
+# Merge the bugs_new table to add the outcome_new column to the base bugs_working table
+setkey(bugs_working,		bug_id);
+setkey(bugs_new_working,	bug_id);
+bugs_working		<- merge(bugs_working, bugs_new_working, by="bug_id", all.x=TRUE);
 
 
 # Count the number of chracters in the title ("short_desc") and make that its own column, "title_length"
@@ -1822,6 +1939,7 @@ components_watch_base	<<- components_watch_domains;
 # Carried forward from clean function since not changed in base or domains
 group_list_base			<<- group_list_clean;
 products_base			<<- products_clean;
+
 
 } # End operationalize_base function
 
@@ -9453,7 +9571,7 @@ bugs_working <- merge(bugs_working, bugs_censored_past_2_years, by="bug_id", all
 
 
 								 
-# Export ngram distance values to CSV if flag set								 
+# Export variables at creation values to CSV if flag set								 
 									 
 if (EXPORT_BUGS_VARIABLES_AT_CREATION_TO_FILE) {
 	
@@ -9650,9 +9768,9 @@ title_export_vals 		<- c("textcat_profiles_title_all",
 # We wrap the results in a data.table (again, full reference to data.table package location) for easier handling and to set rownames based on the bug_id
 # By tracking the bug_id internally this way, we ensure consistency in the assemblange of results.
 # We set the column names of each column in the data table so that we know which comparison DB and which method was used to create the distance value, along with which bug_id
-title_output <- 	foreach(compare_db = iter(title_export_vals), .combine="cbind", .export=title_export_vals,  .multicombine=TRUE, .maxcombine=100L, .verbose=TRUE) %:% 
-						foreach(current_method = iter(method_vals), .combine="cbind", .multicombine=TRUE, .maxcombine=100L, .verbose=TRUE) %:% 
-							foreach(current_title = isplitVector(textcat_profiles_title_each, chunkSize=10000), .combine="rbind", .multicombine=TRUE, .maxcombine=100L, .verbose=TRUE) %dopar% {
+title_output <- 	foreach(compare_db = iter(title_export_vals), .combine="cbind", .export=title_export_vals,  .multicombine=TRUE, .maxcombine=100L, .verbose=FALSE) %:% 
+						foreach(current_method = iter(method_vals), .combine="cbind", .multicombine=TRUE, .maxcombine=100L, .verbose=FALSE) %:% 
+							foreach(current_title = isplitVector(textcat_profiles_title_each, chunkSize=10000), .combine="rbind", .multicombine=TRUE, .maxcombine=100L, .verbose=FALSE) %dopar% {
 								# Provide output to track process
 								current_time <- Sys.time();
 								current_node <- paste(Sys.info()[['nodename']], Sys.getpid(), sep='-');
@@ -9965,6 +10083,38 @@ setkey(bugs_working, 			bug_id);
 bugs_working <- merge(bugs_working, bugs_ngram_distances, by="bug_id", all.x="TRUE");
 
 
+
+
+# Now that we have the updated bugs_new table with outcome_new, we can also check the cases that were resolved (changed from pending to fixed or not_fixed) after the
+# end of the base database snapshot
+
+bugs_working <- mutate(bugs_working, is_title_ngram_outcome_new_prediction_modal_correct 					= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_modal) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_CT_correct 						= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_CT) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_ranks_correct 					= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_ranks) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_ALPD_correct 					= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_ALPD) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_KLI_correct 						= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_KLI) 						==  as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_KLJ_correct 						= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_KLJ) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_JS_correct 						= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_JS) 						== 	as.character(outcome_new)),
+									 is_title_ngram_outcome_new_prediction_Dice_correct 					= safe_ifelse(outcome_new == "pending", NA, as.character(title_ngram_outcome_prediction_Dice) 						==  as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_modal_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_modal) 				== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_CT_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_CT) 					== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_ranks_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_ranks) 				== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_ALPD_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_ALPD) 				== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_KLI_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_KLI) 					== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_KLJ_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_KLJ)					== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_JS_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_JS) 					== 	as.character(outcome_new)),
+									 is_description_ngram_outcome_new_prediction_Dice_correct 				= safe_ifelse(outcome_new == "pending", NA, as.character(description_ngram_outcome_prediction_Dice) 				== 	as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_modal_correct = safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_modal) 	==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_CT_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_CT) 		==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_ranks_correct = safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_ranks) 	==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_ALPD_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_ALPD) 	==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_KLI_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_KLI) 	==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_KLJ_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_KLJ) 	==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_JS_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_JS) 		==  as.character(outcome_new)),
+									 is_title_description_merged_ngram_outcome_new_prediction_Dice_correct 	= safe_ifelse(outcome_new == "pending", NA, as.character(title_description_merged_ngram_outcome_prediction_Dice) 	==  as.character(outcome_new)));
+
+									 
+
 # CLEAN UP
 
 # Set global variables for other functions
@@ -10104,7 +10254,7 @@ description_readability_measures <- NULL;
 for (i in seq(1, 774809, by=45577)) {
 	description_readability_measures_current <- foreach(current_description = isplitVector(bugs_all$description[(i):(i+45576)], chunkSize=1), 
 														current_id 		    = isplitVector(bugs_all$bug_id[(i):(i+45576)], 	 	chunkSize=1), 
-														.combine="rbind", .inorder=FALSE, .multicombine=TRUE, .maxcombine=600L, .verbose=TRUE) %dopar% {
+														.combine="rbind", .inorder=FALSE, .multicombine=TRUE, .maxcombine=600L, .verbose=FALSE) %dopar% {
 													# Provide output to track process
 													current_time <- Sys.time();
 													current_node <- paste(Sys.info()[['nodename']], Sys.getpid(), sep='-');
@@ -10198,7 +10348,7 @@ for (i in seq(1, 774809, by=45577)) {
 
 	description_gzip_outcome_prediction_current <- foreach (current_description = isplitVector(bugs_all$description[(i):(i+45576)], chunkSize = 1),
 															current_id 		    = isplitVector(bugs_all$bug_id[(i):(i+45576)], 	 	chunkSize = 1),
-															.combine="rbind", .inorder=FALSE, .multicombine=TRUE, .maxcombine=1000L, .verbose=TRUE) %dopar% {
+															.combine="rbind", .inorder=FALSE, .multicombine=TRUE, .maxcombine=1000L, .verbose=FALSE) %dopar% {
 													
 														# Provide output to track process
 														current_time <- Sys.time();
@@ -10245,13 +10395,22 @@ stopCluster(cluster);
 
 												
 # Convert bug_id back to an integer factor
-description_gzip_outcome_prediction <- mutate(description_gzip_outcome_prediction, bug_id 								= as.factor(as.numeric(bug_id)),
+description_gzip_outcome_prediction = mutate(description_gzip_outcome_prediction, bug_id 								= as.factor(as.numeric(bug_id)),
 																				  description_gzip_outcome_prediction 	= as.factor(as.character(description_gzip_outcome_prediction)));	
+											
 											
 # Merge bugs_working and description_gzip_outcome_prediction based on bug_id
 setkey(description_gzip_outcome_prediction, bug_id);
 setkey(bugs_working, bug_id);
 bugs_working <- merge(bugs_working, description_gzip_outcome_prediction, by="bug_id", all.x="TRUE");
+
+
+# Create new column that checks if the gzip outcome prediction was correct or not
+# We check once with base data and once with new data with 3 more years of data points
+# The new data was not part of the outcome prediction algorithm, so doesn't suffer from endogeneity in that respect
+bugs_working <- mutate(bugs_working, is_description_gzip_outcome_prediction_correct 	= safe_ifelse(outcome		== "pending", NA, as.character(description_gzip_outcome_prediction) == as.character(outcome)),
+									 is_description_gzip_outcome_new_prediction_correct = safe_ifelse(outcome_new 	== "pending", NA, as.character(description_gzip_outcome_prediction) == as.character(outcome_new)));
+
 
 
 # CLEAN UP
@@ -10276,7 +10435,7 @@ bugs_working <- bugs_calculated;
 description_readability_measures <- fread(input = "./readability_and_gzip_outcome_prediction/description_readability_measures_final.csv", sep=",", header=TRUE); 
 
 # Set the correct variables as factors.
-description_readability_measures = mutate(description_readability_measures, bug_id 											  		= as.factor(as.numeric(bug_id)), 
+description_readability_measures <- mutate(description_readability_measures, bug_id 											  		= as.factor(as.numeric(bug_id)), 
 																			description_readability_Danielson_Bryan_grade_min 		= as.factor(as.numeric(description_readability_Danielson_Bryan_grade_min)),
 																			description_readability_Farr_Jenkins_Paterson_grade_min = as.factor(as.numeric(description_readability_Farr_Jenkins_Paterson_grade_min)),
 																			description_readability_Flesch_grade_min                = as.factor(as.numeric(description_readability_Flesch_grade_min)),
@@ -10319,6 +10478,12 @@ description_gzip_outcome_prediction = mutate(description_gzip_outcome_prediction
 setkey(description_gzip_outcome_prediction, bug_id);
 setkey(bugs_working, bug_id);
 bugs_working <- merge(bugs_working, description_gzip_outcome_prediction, by="bug_id", all.x="TRUE");
+
+# Create new column that checks if the gzip outcome prediction was correct or not
+# We check once with base data and once with new data with 3 more years of data points
+# The new data was not part of the outcome prediction algorithm, so doesn't suffer from endogeneity in that respect
+bugs_working <- mutate(bugs_working, is_description_gzip_outcome_prediction_correct 	= safe_ifelse(outcome		== "pending", NA, as.character(description_gzip_outcome_prediction) == as.character(outcome)),
+									 is_description_gzip_outcome_new_prediction_correct = safe_ifelse(outcome_new 	== "pending", NA, as.character(description_gzip_outcome_prediction) == as.character(outcome_new)));
 
 
 # CLEAN UP
@@ -13494,8 +13659,8 @@ bugs_summary 	<<- bugs_summary_cummulative_transposed;
 
 
 
-
 # OPERATIONALIZE ORGANIZATION-LEVEL VARIABLES
+
 # These functions create the organization-level variables based on the appropriate aggregations of the profiles table
 # They're split into two functions because memory requirements within scopes get ugly
 
@@ -23903,10 +24068,158 @@ orgs_working[is.na(orgs_working)] 				<- NA;
 # CLEAN UP
 
 # Set global variables for other functions
-orgs_final	<<- orgs_working;
+# For orgs_final to have any distinction from profiles_final, it has to have at least two actors, all_actors_count when grouped_by(domain)
+# If there's only one actor, then that org row is redundant to the one profile that uses that single domain
+# We'll let the user specify the MIN_ORG_SIZE at top of the program
+
+orgs_final	<<- filter(orgs_working, all_actors_count >= MIN_ORG_SIZE);
 	
 } # End operationalize_org_level function
 
+
+
+
+# COMPUSTAT DATA
+# This section adds organization-level data on performance related factors such as revenue, expenses, net profit, etc.
+# North-America contains stock prices as well
+
+load_compustat_data_from_CSV <- function() {
+
+compustat_na 		<<-	fread(input='./data/compustatna.csv', 	sep=",", 		header=TRUE, data.table=TRUE);
+compustat_int		<<- fread(input='./data/compustatint.csv', 	sep=",", 		header=TRUE, data.table=TRUE);
+
+} # End load_compustat_data_from_CSV function
+
+
+
+# Clean up dataset to match domain keys of org_level table
+clean_compustat_data <- function () { 
+
+# Drop all values that have no weburl since they're not useful for our dataset
+compustat_na 	<- filter(compustat_na,		!(weburl == "" | is.na(weburl)));
+compustat_int 	<- filter(compustat_int,	!(weburl == "" | is.na(weburl)));  
+
+# Trim off the leading "www."
+compustat_na 	<- mutate(compustat_na, 	domain_part_clean = sub("^www\\.((?:[a-z0-9-]+\\.)+[a-z]{2,4})$", "\\1", 	weburl, 			ignore.case = TRUE, perl = TRUE));
+compustat_int 	<- mutate(compustat_int, 	domain_part_clean = sub("^www\\.((?:[a-z0-9-]+\\.)+[a-z]{2,4})$", "\\1", 	weburl, 			ignore.case = TRUE, perl = TRUE));
+
+
+# Trim off the trailing "/index.html" or other trailing parts
+compustat_na_base 	<<- mutate(compustat_na, 	domain_part_clean = sub("^((?:[a-z0-9-]+\\.)+[a-z]{2,4})\\/.*$", "\\1", 	domain_part_clean, 	ignore.case = TRUE, perl = TRUE));
+compustat_int_base 	<<- mutate(compustat_int, 	domain_part_clean = sub("^((?:[a-z0-9-]+\\.)+[a-z]{2,4})\\/.*$", "\\1", 	domain_part_clean, 	ignore.case = TRUE, perl = TRUE));
+
+
+} # End clean_compustat_data function
+
+
+
+# Fix the domains to ensure only registerable domain portion remains
+fix_domains_compustat_data <- function () { 
+
+# Write the cleaned domain names to file to later input into the PHP script
+write(compustat_na_base$domain_part_clean,	"compustat_na_domain.txt");
+write(compustat_int_base$domain_part_clean,	"compustat_int_domain.txt");
+
+# Call the PHP script described at the start of this file to trim the cleaned domain names to registerable domain portion only
+compustat_na_domain_list_trimmed 	<- system("php -f domainparser_compustat_na.php", 	intern=TRUE);
+compustat_int_domain_list_trimmed 	<- system("php -f domainparser_compustat_int.php", 	intern=TRUE);
+
+# The PHP script returns a messy version of the registerable domains, so parse out only the registerable domain part
+compustat_na_domain_list 	<- sub('^.+\\\"(.+)\\\"$', "\\1", compustat_na_domain_list_trimmed, 	ignore.case = TRUE, perl = TRUE);
+compustat_int_domain_list 	<- sub('^.+\\\"(.+)\\\"$', "\\1", compustat_int_domain_list_trimmed,	ignore.case = TRUE, perl = TRUE);
+
+# Add the registerable domain portion column to the tables
+# Set the class to factor and type to character to be sure it's read correctly
+# And set the characters to all lowercase, to ensure matching
+compustat_na_base$domain 	<<- as.factor(tolower(as.character(compustat_na_domain_list)));
+compustat_int_base$domain 	<<- as.factor(tolower(as.character(compustat_int_domain_list)));
+
+} # End fix_domains_compustat_data function
+
+
+
+# Impute the data to deal with multiple entries using the same domain
+# Recast the data so that the year entries are columns instead of rows
+# Each row will be a single company (domain)
+
+operationalize_base_compustat_data <- function () {
+
+# Registerable domain names are not a perfect identifier, but that's all we can match on for the Bugzilla database, unfortunately
+# As a result, the NA & INT compustat databases sometimes both have entries with the same domains
+# The NA data has additional items about stock prices, so we'll make the imputation choice of preferring it in the case domains appear in both
+
+compustat_int_base 	<- filter(compustat_int_base, !(domain %in% compustat_na_base$domain));  
+
+# For the recasting, we only care about the year-varying columns, along, with the domain as id and fyear as time-varying variable
+# Because domains aren't unique on, on some few occasions, the reshape() function will select the first one it finds
+# It's not optimal, but short of manual imputation, it's the best we have and a result of org-level grouping by domain being imperfect in Bugzilla dataset
+
+compustat_na_wide 		<- compustat_na_base 	%>% select (domain, fyear, act, at, bkvlps, capx, capxv, ceq, ceql, ceqt, cogs, cshtr_f, cshtr_c, dp, dpc, dvc, dvp, dvt, dvpsp_c, 
+															dvpsp_f, dvpsx_c, dvpsx_f, ebit, ebitda, emp, gp, ib, lct, lt, mkvalt, ni, oiadp, oibdp, opiti, pi, prcc_f, 
+															prch_f, prcl_f,prcc_c, prch_c, prcl_c, revt, sale, seq, teq, txc, txt, xad, xagt, xcom, xeqo, xlr, xopr, xrd, xrdp, xsga, xstfws, xt) %>%
+													reshape(timevar="fyear", idvar="domain", direction="wide", sep="_") %>%
+													select(-ends_with("_NA"), -ends_with("_1997"));
+													
+compustat_int_wide		<- compustat_int_base 	%>%	select (domain, fyear, act, at, capx, ceq, cogs, dp, dpc, dvc, dvp, dvt, ebit, ebitda, emp, ib, lct, lt, nicon, oiadp, oibdp,
+															pi, revt, sale, seq, teq, tx, txc, txt, xagt, xcom, xeqo, xlr, xopr, xrd, xsga, xstfws, xt) %>%
+													reshape(timevar="fyear", idvar="domain", direction="wide", sep="_");
+					
+# For the non-time varying variables, we want to just take the last entry of each one to populate those fields
+compustat_na_constants	<- compustat_na_base	%>% select (-act, -at, -bkvlps, -capx, -capxv, -ceq, -ceql, -ceqt, -cogs, -cshtr_f, -cshtr_c, -dp, -dpc, -dvc, -dvp, -dvt, -dvpsp_c,
+															-dvpsp_f, -dvpsx_c, -dvpsx_f, -ebit, -ebitda, -emp, -gp, -ib, -lct, -lt, -mkvalt, -ni, -oiadp, -oibdp, -opiti, -pi, -prcc_f,
+															-prch_f, -prcl_f, -prcc_c, -prch_c, -prcl_c, -revt, -sale, -seq, -teq, -txc, -txt, -xad, -xagt, -xcom, -xeqo, -xlr, -xopr, -xrd, 
+															-xrdp, -xsga, -xstfws, -xt, 
+															-datadate, -datafmt) %>% 
+													arrange(-fyear) %>% distinct(domain) %>% arrange(domain) %>% select(-fyear);
+													
+compustat_int_constants	<- compustat_int_base	%>% select (-act, -at, -capx, -ceq, -cogs, -dp, -dpc, -dvc, -dvp, -dvt, -ebit, -ebitda, -emp, -ib, -lct, -lt, -nicon, -oiadp, -oibdp,
+															-pi, -revt, -sale, -seq, -teq, -tx, -txc, -txt, -xagt, -xcom, -xeqo, -xlr, -xopr, -xrd, -xsga, -xstfws, -xt,
+															-datadate, -datafmt, -final, -scf) %>%
+													arrange(-fyear) %>% distinct(domain) %>% arrange(domain) %>% select(-fyear);
+	
+	
+	
+# Drop any columns that contain all NA (missing) values
+# Also make tables accessible outside function
+compustat_na_wide		<<- compustat_na_wide		[,which(unlist(lapply(compustat_na_wide, 		function(x)!all(is.na(x))))),with=F];
+compustat_int_wide		<<- compustat_int_wide		[,which(unlist(lapply(compustat_int_wide, 		function(x)!all(is.na(x))))),with=F];
+compustat_na_constants	<<- compustat_na_constants	[,which(unlist(lapply(compustat_na_constants, 	function(x)!all(is.na(x))))),with=F];
+compustat_int_constants	<<- compustat_int_constants	[,which(unlist(lapply(compustat_int_constants, 	function(x)!all(is.na(x))))),with=F];
+	
+} # End operationalize_base_compustat_data
+
+
+
+merge_compustat_data <- function() {
+
+# Create logical columns to filter on compustat data source in final database
+compustat_na_wide       <- mutate(compustat_na_wide,		has_compustat_na_yearly		= TRUE);
+compustat_int_wide		<- mutate(compustat_int_wide,		has_compustat_int_yearly	= TRUE);
+compustat_na_constants	<- mutate(compustat_na_constants,	has_compustat_na_info		= TRUE);
+compustat_int_constants	<- mutate(compustat_int_constants,	has_compustat_int_info		= TRUE);
+
+# Merge compustat variables with org_final
+setkey(compustat_na_wide,		domain);
+setkey(compustat_int_wide,		domain);
+setkey(compustat_na_constants,	domain);
+setkey(compustat_int_constants,	domain);
+setkey(orgs_final,				domain);
+
+
+# Use merge_update() utility function since compustat_na & compustat_int tables have overlapping variables
+# We prioritize the compustat_na variables as a design choice. Could flip variable order in merge_update to prioritize international
+
+compustat_wide_all			<- 	merge_update(compustat_na_wide, 		compustat_int_wide, 		by="domain");
+compustat_constants_all		<-	merge_update(compustat_na_constants,	compustat_int_constants,	by="domain");
+
+setkey(compustat_wide_all, 		domain);
+setkey(compustat_constants_all,	domain);
+orgs_final_compustat 		<- 	merge(orgs_final, 			compustat_wide_all,			by="domain", all.x=TRUE);
+
+setkey(orgs_final_compustat, 	domain);   
+orgs_final_compustat 		<<- merge(orgs_final_compustat, compustat_constants_all,	by="domain", all.x=TRUE);   
+
+} # End merge_compustat_data function
 
 
 
@@ -23954,10 +24267,10 @@ end_base					<- Sys.time();
 	
 # Remove global variables that we no longer need to free up memory
 	# Original input variables
-	rm(bugs, profiles, longdescs, activity, cc, attachments, votes, watch, duplicates, group_members, keywords, flags, products, dependencies, group_list, components, components_cc, components_watch);
+	rm(bugs, bugs_new, profiles, longdescs, activity, cc, attachments, votes, watch, duplicates, group_members, keywords, flags, products, dependencies, group_list, components, components_cc, components_watch);
 
 	# Cleaned variables
-	rm(bugs_clean, profiles_clean, longdescs_clean, activity_clean, cc_clean, attachments_clean, votes_clean, watch_clean, duplicates_clean, group_members_clean, 
+	rm(bugs_clean, bugs_new_clean, profiles_clean, longdescs_clean, activity_clean, cc_clean, attachments_clean, votes_clean, watch_clean, duplicates_clean, group_members_clean, 
 	   keywords_clean, flags_clean, products_clean, dependencies_clean, group_list_clean, components_clean, components_cc_clean, components_watch_clean);
 	
 	# Variables with appended domains
@@ -24048,26 +24361,70 @@ end_org						<- Sys.time();
 # Remove more global variables that are no longer needed to free up memory
 	rm(orgs_partial);
 	gc();
-   
-end_total <- Sys.time();
+
+	
+# COMPUSTAT functions
+start_compustat				<- Sys.time();	
+	load_compustat_data_from_CSV();
+	clean_compustat_data();
+	fix_domains_compustat_data();
+	operationalize_base_compustat_data();
+	merge_compustat_data();
+end_compustat				<- Sys.time();
+
+# Remove compustat variables that we no longer need to free up  memory
+	rm(compustat_int, compustat_int_base, compustat_int_constants, compustat_int_wide, compustat_na, compustat_na_base, compustat_na_constants, compustat_na_wide);
+	gc();
+
+# If flagged at start of program, remove all the large base vars before going to interactive session to leave more free memory
+if (REMOVE_BASE_VARS) {
+	rm (activity_base, attachments_base, cc_base, components_base, components_cc_base, components_watch_base, dependencies_base,
+		duplicates_base, flags_base, group_list_base, group_members_base, keywords_base, longdescs_base, products_base, votes_base, 
+		watch_base, description_comment_ids);
+	gc();
+}
+
+
+# Final export to binary RData format
+# If flagged by user at top of script, export final tables for later importing
+start_final_export			<- Sys.time();
+	
+if (EXPORT_FINAL_TABLES_TO_SINGLE_FILE) {
+	final_list <- c("bugs_final", "profiles_final", "orgs_final", "orgs_final_compustat");
+	save(list=final_list, 				file = "final_tables.RData",			compress=TRUE, ascii=FALSE);
+	gc();
+}
+
+if (EXPORT_FINAL_TABLES_TO_SEPARATE_FILES) {
+	save(list="bugs_final", 			file = "bugs_final.RData",				compress=TRUE, ascii=FALSE);
+	save(list="profiles_final", 		file = "profiles_final.RData",			compress=TRUE, ascii=FALSE);
+	save(list="orgs_final",		 		file = "orgs_final.RData",				compress=TRUE, ascii=FALSE);
+	save(list="orgs_final_compustat",	file = "orgs_final_compustat.RData",	compress=TRUE, ascii=FALSE);
+}
+
+end_final_export			<- Sys.time();
+
+end_total 					<- Sys.time();
 
 
 # Calculate & report on execution times of each function & total time
-load_time 					<- end_load - start_load;
-clean_time 					<- end_clean - start_clean;
-domains_time 				<- end_domains - start_domains;
-base_time 					<- end_base - start_base;
-interactions_part_time 		<- end_interactions_part - start_interactions_part;
-interactions_time 			<- end_interactions - start_interactions;
-calculated_time 			<- end_calculated - start_calculated;
-calculated_slow_time 		<- end_calculated_slow - start_calculated_slow;
-calculated_very_slow_time 	<- end_calculated_very_slow - start_calculated_very_slow;
-bugs_summary_time 			<- end_bugs_summary - start_bugs_summary;
-final_time 					<- end_final - start_final;
-org_part_time 				<- end_org_part - start_org_part;
-org_time 					<- end_org - start_org;
+load_time 					<- end_load 				- start_load;
+clean_time 					<- end_clean 				- start_clean;
+domains_time 				<- end_domains 				- start_domains;
+base_time 					<- end_base 				- start_base;
+interactions_part_time 		<- end_interactions_part 	- start_interactions_part;
+interactions_time 			<- end_interactions 		- start_interactions;
+calculated_time 			<- end_calculated 			- start_calculated;
+calculated_slow_time 		<- end_calculated_slow 		- start_calculated_slow;
+calculated_very_slow_time 	<- end_calculated_very_slow	- start_calculated_very_slow;
+bugs_summary_time 			<- end_bugs_summary 		- start_bugs_summary;
+final_time 					<- end_final 				- start_final;
+org_part_time 				<- end_org_part 			- start_org_part;
+org_time 					<- end_org 					- start_org;
+compustat_time				<- end_compustat			- start_compustat;
+final_export_time			<- end_final_export			- start_final_export;
 
-total_time 					<- end_total - start_total;
+total_time 					<- end_total 				- start_total;
 
 
 print(paste0(cat("\n\n"), "Load time was: ", 					format(load_time,                 units="auto"), 	cat("\n\n")));
@@ -24083,10 +24440,25 @@ print(paste0(cat("\n\n"), "Bugs_summary time was: ", 			format(bugs_summary_time
 print(paste0(cat("\n\n"), "Final time was: ", 					format(final_time,                units="auto"), 	cat("\n\n")));
 print(paste0(cat("\n\n"), "Org_part time was: ", 				format(org_part_time,             units="auto"), 	cat("\n\n")));
 print(paste0(cat("\n\n"), "Org time was: ", 					format(org_time,                  units="auto"), 	cat("\n\n")));
+print(paste0(cat("\n\n"), "Compustat time was: ", 				format(compustat_time,            units="auto"), 	cat("\n\n")));
+print(paste0(cat("\n\n"), "Final export time was: ", 			format(final_export_time,         units="auto"), 	cat("\n\n")));
 
 print(paste0(cat("\n\n"), "Total time was: ", 					format(total_time,                units="auto"), 	cat("\n\n")));
+
 	
 	
-# End MAIN FUNCTION
-	
+
+# HANDY COMMANDS and end notes
+
+# Check the size of all current objects in memory
+# sort(sapply(ls(), function(x) format(object.size(get(x)), unit = 'auto')));
+
+
+# Count how many data points we have created
+# (as.double(ncol(profiles_final)) * as.double(nrow(profiles_final))) + (as.double(ncol(bugs_final)) * as.double(nrow(bugs_final))) + (as.double(ncol(orgs_final_compustat)) * as.double(nrow(orgs_final_compustat)));
+
+# Run as source()
+# source('data_operationalization.r', echo=TRUE, max.deparse.length=10000, keep.source=TRUE, verbose=TRUE, print.eval=TRUE);
+
+
 # EOF

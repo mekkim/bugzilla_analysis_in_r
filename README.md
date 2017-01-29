@@ -1,7 +1,7 @@
 # Analyzing Mozilla's Bugzilla Database Using R	
 
 ---
-© 2015-2016 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca), [LinkedIn](http://mekki.ca), [Twitter](http://twitter.com/mekki)			
+© 2015-2017 by Mekki MacAulay, [mekki@mekki.ca](mailto:mekki@mekki.ca), [LinkedIn](http://mekki.ca), [Twitter](http://twitter.com/mekki)			
 Some rights reserved.																			
 
 This program is free and open source software. The author licenses it	
@@ -19,7 +19,7 @@ Should you require an alternative licensing arrangement for this
 software, please contact the author.
 	                                
 ---
-## To execute the script file in R, use the following commands:
+## To execute the script files in R, use the following commands:
 ```R
 setwd('<FULL PATH TO THIS SCRIPT FILE>');
 source('<NAME OF THIS FILE>.r', echo=TRUE, max.deparse.length=100000, keep.source=TRUE, verbose=TRUE);
@@ -38,7 +38,7 @@ The `CAT` is necessary because by default R output writes to file, not command p
 ---
 ## This script depends on:
 
-1. An updated (>3.2.0) `R` installation with the appropriate packages
+1. An updated (>3.3.2) `R` installation with the appropriate packages
 2. A `MySQL` (tested on 5.5.xx) installation containing the Mozilla Bugzilla database to analyze
 3. A `PHP` installation (tested on 5.6.14)
 4. A `PHP Composer` installation
@@ -87,7 +87,7 @@ mysql -uroot -ppassword bugs < bugzilla.sql
 The last command will execute for several minutes as it populates the database with the dumpfile data. The result will be a database named "bugs" on the MySQL server, filled with the Bugzilla data
 
 ---
-## INSTALL AND CONFIGURE R (Statistical package) or Microsoft R Open (MRO - From Revolution Analytics)
+## INSTALL AND CONFIGURE R (Statistical package) or Microsoft R Open (MRO - From Microsoft, formerly Revolution Analytics)
 
 * Visit: http://cran.utstat.utoronto.ca/bin/windows/base/ or another mirror
 
@@ -99,7 +99,7 @@ The last command will execute for several minutes as it populates the database w
 
 NOTE: This script might execute faster with MRO vs. base R, especially when using multiple cores
 
-NOTE: You are encouraged to use an R or MRO version of at least 3.2.x as versions 3.1.3 and earlier execute this script significantly
+NOTE: You are encouraged to use an R or MRO version of at least 3.3.2 as versions 3.1.3 and earlier execute this script significantly
 slower (~45% speed decrease), likely due to different memory heap management discussed here: 
 http://cran.r-project.org/src/base/NEWS
 
@@ -111,14 +111,18 @@ http://cran.r-project.org/src/base/NEWS
 * That will ensure that R can find this script when executed from within the R shell
 
 * Install additional packages from the package manager including at least the following:
+  - betareg
   - bit64 
+  - car
   - chron
   - curl
   - data.table
   - DBI
   - devtools
   - dplyr
+  - dtplyr
   - DT
+  - e1071
   - FactoMineR
   - ggplot2
   - graphics
@@ -128,10 +132,18 @@ http://cran.r-project.org/src/base/NEWS
   - itertools
   - iterators
   - koRpus (With caps: "koRpus") -> Development is moving quickly, so might be best to use Dev version: install.packages("koRpus", repo="http://R.reaktanz.de") which depends on package:devtools, so install that first
+  - lme4
+  - lmtest
   - longitudinalData
   - lubridate
+  - moments
+  - nnet
+  - nortest
   - doParallel (And its many Windows dependencies including "foreach", "snow", and "parallel"
+  - piecewiseSEM
   - plyr
+  - pscl
+  - qpcR
   - Rcmdr (and its many plugins)
   - RCurl
   - rggobi
@@ -139,6 +151,7 @@ http://cran.r-project.org/src/base/NEWS
   - RGtk2
   - RGtk2Extras
   - RJDBC
+  - RLRsim
   - RMySQL
   - RODBC
   - RODBCext

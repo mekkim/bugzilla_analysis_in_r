@@ -1,3 +1,17 @@
+# January 29, 2017:
+
+- Major revision rolling up all changes since last version
+- Code now split into 5 scripts:
+- 1) All database manipulations and creation of data points now in data_operationalization.r
+- 2) All bug-level analysis code now in bug_level_analysis.r
+- 3) All profile-level analysis code now in profile_level_analysis.r
+- 4) All organization-level analysis code now in org_level_analysis.r
+- 5) All profile- and organization- mixed-level analysis code now in profile_org_nested_analysis.r
+- Code updated for R base version 3.3.2 (November 2016) and latest packages, including some changes that break previous code
+- README updated to include new R version numbers and complete list of package dependencies
+- Code updated to incorporate COMPUSTAT data in regression models
+
+
 # March 12, 2016:
 
 - Added year-based learning effect outcome variables at profile- & org-levels
